@@ -1,0 +1,237 @@
+@import url("./tokens.css");
+
+:root {
+  color: var(--color-text);
+  background: var(--color-bg);
+  font-family: var(--font-body);
+  font-synthesis: none;
+  line-height: var(--line-md);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 20rem;
+  min-height: 100vh;
+  margin: 0;
+}
+
+a {
+  color: var(--color-link);
+  text-underline-offset: 0.2em;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.shell {
+  width: min(100% - 2rem, 70rem);
+  margin-inline: auto;
+}
+
+.site-header {
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in oklch, var(--color-surface) 92%, transparent);
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-5);
+  min-height: var(--size-16);
+}
+
+.brand {
+  color: inherit;
+  font-weight: var(--weight-bold);
+  text-decoration: none;
+}
+
+nav ul,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--size-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+main {
+  padding-block: clamp(var(--size-10), 8vw, var(--size-24));
+}
+
+h1,
+h2,
+p {
+  margin-block-start: 0;
+}
+
+h1 {
+  max-width: 17ch;
+  font-size: var(--scale-fluid-6);
+  line-height: var(--line-xs);
+  letter-spacing: var(--letter-sm);
+}
+
+h2 {
+  font-size: var(--scale-3);
+}
+
+.hero {
+  padding-block-end: var(--size-20);
+}
+
+.eyebrow {
+  color: var(--color-link);
+  font-size: var(--scale-00);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--letter-xl);
+  text-transform: uppercase;
+}
+
+.lede {
+  max-width: var(--prose-sm);
+  color: var(--color-text-muted);
+  font-size: var(--scale-2);
+}
+
+.button,
+button {
+  display: inline-flex;
+  justify-content: center;
+  min-height: var(--size-11);
+  padding: var(--size-2) var(--size-5);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-control);
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  font: inherit;
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+button:hover,
+.button:hover {
+  background: var(--color-accent-hover);
+}
+
+.feature-grid,
+.example-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--size-5);
+  padding: 0;
+  list-style: none;
+}
+
+.feature-grid li,
+.example-grid article {
+  display: grid;
+  gap: var(--size-2);
+  padding: var(--size-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-surface);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-surface);
+}
+
+.feature-grid span {
+  color: var(--color-text-muted);
+}
+
+.narrow {
+  width: min(100%, 32rem);
+}
+
+.stack,
+.field {
+  display: grid;
+  gap: var(--size-2);
+}
+
+.stack {
+  gap: var(--size-5);
+  margin-block: var(--size-8);
+}
+
+label,
+dt {
+  font-weight: var(--weight-semibold);
+}
+
+input {
+  width: 100%;
+  min-height: var(--size-11);
+  padding: var(--size-2) var(--size-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  color: inherit;
+  background: var(--color-surface);
+  font: inherit;
+}
+
+.message,
+.example-result {
+  padding: var(--size-4);
+  border-radius: var(--radius-control);
+  background: var(--color-info-bg);
+}
+
+.message-error {
+  color: var(--color-danger-text);
+  background: var(--color-danger-bg);
+}
+
+.account-details > div {
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  gap: var(--size-4);
+  padding-block: var(--size-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.account-details dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: var(--layer-toast);
+  top: var(--size-2);
+  left: var(--size-2);
+  padding: var(--size-2);
+  background: var(--color-surface);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+@media (max-width: 40rem) {
+  .header-inner {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-block: var(--size-4);
+  }
+
+  nav ul {
+    flex-wrap: wrap;
+    gap: var(--size-3) var(--size-5);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .site-header {
+    background: var(--color-surface);
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hono-dual-runtime-starter",
+  "main": "src/runtime/cloudflare.ts",
+  "compatibility_date": "2026-09-27",
+  "assets": {
+    "directory": "dist/client",
+    "run_worker_first": true,
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hono-dual-runtime-starter",
+      "database_id": "replace-with-your-d1-database-id",
+      "migrations_dir": "drizzle",
+    },
+  ],
+  "ratelimits": [
+    {
+      "name": "AUTH_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 5,
+        "period": 60,
+      },
+    },
+  ],
+  "observability": {
+    "enabled": true,
+  },
+  "vars": {
+    "BETTER_AUTH_URL": "https://replace-with-your-domain.example",
+    "EMAIL_FROM": "App <no-reply@replace-with-your-domain.example>",
+    "TRUSTED_ORIGINS": "https://replace-with-your-domain.example",
+  },
+}

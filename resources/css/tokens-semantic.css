@@ -1,0 +1,82 @@
+:root {
+  /*
+   * Project semantic tokens.
+   * Load after tokens-foundation.css and tokens-palette.css.
+   * Light values preserve the existing slate/blue appearance.
+   */
+
+  /* TYPOGRAPHY */
+  --font-body: var(--font-sans);
+  --font-heading: var(--font-sans);
+  --font-code: var(--font-mono);
+
+  /* COLORS - Surfaces */
+  --color-bg: var(--color-slate-50);
+  --color-surface: var(--color-white);
+  --color-surface-raised: var(--color-white);
+  --color-surface-muted: var(--color-slate-100);
+
+  /* COLORS - Text */
+  --color-text: var(--color-slate-900);
+  --color-text-muted: var(--color-slate-600);
+  --color-text-subtle: var(--color-slate-500);
+  --color-text-inverse: var(--color-white);
+
+  /* COLORS - Borders */
+  --color-border: var(--color-slate-200);
+  --color-border-strong: var(--color-slate-400);
+
+  /* COLORS - Accent (buttons) */
+  --color-accent: var(--color-blue-700);
+  --color-accent-hover: var(--color-blue-800);
+  --color-accent-active: var(--color-blue-800);
+  --color-accent-contrast: var(--color-white);
+
+  /* COLORS - Links */
+  --color-link: var(--color-blue-700);
+
+  /* COLORS - Interaction */
+  --color-focus: var(--color-blue-500);
+  --color-selection: var(--color-blue-200);
+
+  /* COLORS - Status */
+  --color-info: var(--color-blue-600);
+  --color-info-bg: var(--color-blue-50);
+  --color-success: var(--color-green-600);
+  --color-warning: var(--color-amber-600);
+  --color-danger: var(--color-red-600);
+  --color-danger-bg: var(--color-red-50);
+  --color-danger-text: var(--color-red-900);
+
+  /* UI - Semantic Radius */
+  --radius-control: var(--radius-md);
+  --radius-surface: var(--radius-lg);
+  --radius-popover: var(--radius-lg);
+
+  /* UI - Semantic Shadows */
+  --shadow-surface: var(--shadow-xs);
+  --shadow-popover: var(--shadow-lg);
+  --shadow-dialog: var(--shadow-xl);
+
+  /* UI - Semantic Layers */
+  --layer-dropdown: var(--layer-2);
+  --layer-sticky: var(--layer-1);
+  --layer-overlay: var(--layer-3);
+  --layer-modal: var(--layer-4);
+  --layer-toast: var(--layer-5);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: var(--color-slate-950);
+    --color-surface: var(--color-slate-900);
+    --color-surface-raised: var(--color-slate-900);
+    --color-surface-muted: var(--color-slate-800);
+    --color-text: var(--color-slate-100);
+    --color-text-muted: var(--color-slate-300);
+    --color-text-subtle: var(--color-slate-400);
+    --color-border: var(--color-slate-700);
+    --color-border-strong: var(--color-slate-700);
+    --color-link: var(--color-blue-300);
+  }
+}

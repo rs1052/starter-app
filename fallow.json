@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  "entry": [
+    "src/runtime/node.ts",
+    "src/runtime/cloudflare.ts",
+    "resources/js/app.ts",
+    "scripts/*.ts",
+    "tests/**/*.ts",
+    "*.config.{ts,js}"
+  ]
+}

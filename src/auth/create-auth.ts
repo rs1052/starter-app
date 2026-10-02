@@ -1,0 +1,45 @@
+import { drizzleAdapter, type DB } from "@better-auth/drizzle-adapter";
+import { betterAuth } from "better-auth";
+import * as schema from "../db/schema.js";
+import type { SendEmail } from "../email/send-email.js";
+
+export interface AuthConfig {
+  baseURL: string;
+  production: boolean;
+  scheduleTask: (promise: Promise<unknown>) => void;
+  secret: string;
+  sendEmail: SendEmail;
+  trustedOrigins: string[];
+}
+
+export function createAuth(database: DB, config: AuthConfig) {
+  return betterAuth({
+    baseURL: config.baseURL,
+    secret: config.secret,
+    trustedOrigins: config.trustedOrigins,
+    database: drizzleAdapter(database, {
+      provider: "sqlite",
+      schema,
+    }),
+    emailAndPassword: {
+      enabled: true,
+      sendResetPassword: async ({ user, url }) => {
+        await config.sendEmail({
+          to: user.email,
+          subject: "Reset your password",
+          text: `Use this link to reset your password: ${url}\n\nThis link expires in one hour. If you did not request it, you can ignore this email.`,
+        });
+      },
+    },
+    advanced: {
+      backgroundTasks: { handler: config.scheduleTask },
+      defaultCookieAttributes: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: config.production,
+      },
+    },
+  });
+}
+
+export type Auth = ReturnType<typeof createAuth>;
