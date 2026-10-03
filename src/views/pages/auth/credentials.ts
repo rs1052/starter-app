@@ -1,7 +1,7 @@
 import { html } from "hono/html";
 import { SubmitButton } from "../../components/submit-button.js";
 import { FormField } from "../../components/form-field.js";
-import { Message } from "../../components/message.js";
+import { FeedbackMessage } from "../../components/feedback-message.js";
 
 export function CredentialsPage(options: {
   email?: string;
@@ -12,7 +12,7 @@ export function CredentialsPage(options: {
   return html`<section class="narrow">
     <p class="eyebrow">${signUp ? "Get started" : "Welcome back"}</p>
     <h1>${signUp ? "Create your account" : "Sign in"}</h1>
-    ${options.error ? Message(options.error, "error") : ""}
+    ${options.error ? FeedbackMessage(options.error, "error") : ""}
     <form method="post" action="/${options.mode}" class="stack">
       ${
         signUp

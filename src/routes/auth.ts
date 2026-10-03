@@ -1,12 +1,12 @@
 import type { Context } from "hono";
 import type { App, AppEnv, AppOptions } from "../app-types.js";
-import { page } from "../http/page.js";
+import { renderPage } from "../http/page.js";
 import { boundedBody, sameOrigin } from "../middleware/request-security.js";
 import { AccountPage } from "../views/pages/account.js";
 import { CredentialsPage } from "../views/pages/auth/credentials.js";
 import { ForgotPasswordPage } from "../views/pages/auth/forgot-password.js";
 import { ResetPasswordPage } from "../views/pages/auth/reset-password.js";
-import type { Assets } from "../views/layouts/app.js";
+import type { PageAssetPaths } from "../views/layouts/app.js";
 
 export function registerAuthRoutes(app: App, options: AppOptions) {
   app.use("/api/auth/*", boundedBody);
@@ -36,7 +36,7 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
 
   app.get("/sign-up", (c) => {
     if (c.get("session")) return c.redirect("/account");
-    return page(
+    return renderPage(
       c,
       options.assets,
       "Sign up",
@@ -46,7 +46,7 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
 
   app.get("/sign-in", (c) => {
     if (c.get("session")) return c.redirect("/account");
-    return page(
+    return renderPage(
       c,
       options.assets,
       "Sign in",
@@ -55,13 +55,13 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
   });
 
   app.get("/forgot-password", (c) =>
-    page(c, options.assets, "Forgot password", ForgotPasswordPage()),
+    renderPage(c, options.assets, "Forgot password", ForgotPasswordPage()),
   );
 
   app.get("/reset-password", (c) => {
     const token = c.req.query("token") ?? "";
     const invalid = c.req.query("error") === "INVALID_TOKEN" || !token;
-    return page(
+    return renderPage(
       c,
       options.assets,
       "Reset password",
@@ -78,7 +78,7 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
   app.post("/sign-up", async (c) => {
     const form = await readCredentials(c, true);
     if (form.error) {
-      return page(
+      return renderPage(
         c,
         options.assets,
         "Sign up",
@@ -109,7 +109,7 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
   app.post("/sign-in", async (c) => {
     const form = await readCredentials(c, false);
     if (form.error) {
-      return page(
+      return renderPage(
         c,
         options.assets,
         "Sign in",
@@ -140,7 +140,7 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
   app.post("/forgot-password", async (c) => {
     const form = await readEmail(c);
     if (form.error) {
-      return page(
+      return renderPage(
         c,
         options.assets,
         "Forgot password",
@@ -160,7 +160,7 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
       body: { email: form.email, redirectTo: "/reset-password" },
       headers: c.req.raw.headers,
     });
-    return page(
+    return renderPage(
       c,
       options.assets,
       "Check your email",
@@ -171,7 +171,7 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
   app.post("/reset-password", async (c) => {
     const form = await readResetPassword(c);
     if (form.error) {
-      return page(
+      return renderPage(
         c,
         options.assets,
         "Reset password",
@@ -185,7 +185,7 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
       headers: c.req.raw.headers,
       asResponse: true,
     });
-    return page(
+    return renderPage(
       c,
       options.assets,
       "Reset password",
@@ -203,7 +203,7 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
   app.get("/account", (c) => {
     const current = c.get("session");
     if (!current) return c.redirect("/sign-in");
-    return page(c, options.assets, "Account", AccountPage(current.user));
+    return renderPage(c, options.assets, "Account", AccountPage(current.user));
   });
 
   app.post("/sign-out", async (c) => {
@@ -314,7 +314,7 @@ async function readResetPassword(c: Context) {
 async function authResult(
   c: Context<AppEnv>,
   response: Response,
-  assets: Assets,
+  assets: PageAssetPaths,
   mode: "sign-in" | "sign-up",
   email: string,
 ) {
@@ -323,7 +323,7 @@ async function authResult(
     headers.set("location", "/account");
     return new Response(null, { status: 303, headers });
   }
-  return page(
+  return renderPage(
     c,
     assets,
     mode === "sign-up" ? "Sign up" : "Sign in",

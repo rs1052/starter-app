@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
 import type { Auth } from "./auth/create-auth.js";
-import type { Assets } from "./views/layouts/app.js";
+import type { PageAssetPaths } from "./views/layouts/app.js";
 
 export type AuthRateLimiter = (key: string) => Promise<{
   allowed: boolean;
@@ -8,7 +8,7 @@ export type AuthRateLimiter = (key: string) => Promise<{
 }>;
 
 export interface AppOptions {
-  assets: Assets;
+  assets: PageAssetPaths;
   auth: Auth;
   authRateLimiter: AuthRateLimiter;
   authClientAddress: (request: Request) => string;
