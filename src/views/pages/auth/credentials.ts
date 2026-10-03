@@ -1,5 +1,5 @@
 import { html } from "hono/html";
-import { Button } from "../../components/button.js";
+import { SubmitButton } from "../../components/submit-button.js";
 import { FormField } from "../../components/form-field.js";
 import { Message } from "../../components/message.js";
 
@@ -39,7 +39,7 @@ export function CredentialsPage(options: {
         autocomplete: signUp ? "new-password" : "current-password",
         maxLength: 128,
       })}
-      ${Button(signUp ? "Create account" : "Sign in")}
+      ${SubmitButton(signUp ? "Create account" : "Sign in")}
     </form>
     <p>
       ${signUp ? "Already have an account?" : "Need an account?"}

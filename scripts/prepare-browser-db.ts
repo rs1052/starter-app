@@ -8,5 +8,6 @@ const path = "data/test-browser.db";
 for (const suffix of ["", "-shm", "-wal"])
   rmSync(`${path}${suffix}`, { force: true });
 const client = new Database(path);
+client.pragma("foreign_keys = ON");
 migrate(drizzle(client), { migrationsFolder: "drizzle" });
 client.close();

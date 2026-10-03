@@ -3,5 +3,11 @@ export default {
     "block-no-empty": true,
     "color-no-invalid-hex": true,
     "declaration-block-no-duplicate-properties": true,
+    "at-rule-no-unknown": true,
+    "property-no-unknown": true,
+    "selector-pseudo-class-no-unknown": true,
+    "selector-pseudo-element-no-unknown": true,
+    "unit-no-unknown": true,
+    "no-duplicate-selectors": true,
   },
 };

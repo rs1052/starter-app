@@ -10,8 +10,15 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command:
-      "DATABASE_PATH=data/test-browser.db BETTER_AUTH_SECRET=browser-test-secret-at-least-32-characters BETTER_AUTH_URL=http://127.0.0.1:4173 TRUSTED_ORIGINS=http://127.0.0.1:4173 pnpm dev --host 127.0.0.1 --port 4173",
+    command: "pnpm dev --host 127.0.0.1 --port 4173 --strictPort",
+    env: {
+      DATABASE_PATH: "data/test-browser.db",
+      BETTER_AUTH_SECRET: "browser-test-secret-at-least-32-characters",
+      BETTER_AUTH_URL: "http://127.0.0.1:4173",
+      TRUSTED_ORIGINS: "http://127.0.0.1:4173",
+      EMAIL_FROM: "",
+      RESEND_API_KEY: "",
+    },
     url: "http://127.0.0.1:4173/health",
     reuseExistingServer: false,
     timeout: 30_000,

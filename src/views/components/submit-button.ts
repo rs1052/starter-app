@@ -1,5 +1,5 @@
 import { html } from "hono/html";
 
-export function Button(label: string) {
+export function SubmitButton(label: string) {
   return html`<button type="submit">${label}</button>`;
 }

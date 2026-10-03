@@ -14,6 +14,10 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     files: ["**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
+    },
     languageOptions: {
       parserOptions: {
         projectService: true,

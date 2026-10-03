@@ -11,6 +11,7 @@ export interface AppOptions {
   assets: Assets;
   auth: Auth;
   authRateLimiter: AuthRateLimiter;
+  authClientAddress: (request: Request) => string;
   healthCheck: () => Promise<void>;
 }
 

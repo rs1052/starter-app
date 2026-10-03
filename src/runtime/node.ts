@@ -22,6 +22,7 @@ const databasePath = resolve(process.env.DATABASE_PATH ?? "data/app.db");
 mkdirSync(dirname(databasePath), { recursive: true });
 
 const client = new Database(databasePath);
+client.pragma("foreign_keys = ON");
 client.pragma("journal_mode = WAL");
 const database = drizzle(client, { schema });
 const config = parseRuntimeConfig(
@@ -48,6 +49,7 @@ export const app = createApp({
     ? { css: "/assets/app.css", script: "/assets/app.js" }
     : { css: "/resources/css/app.css", script: "/resources/js/app.ts" },
   auth,
+  authClientAddress: () => "local-development",
   authRateLimiter,
   healthCheck: async () => {
     client.prepare("select 1").get();

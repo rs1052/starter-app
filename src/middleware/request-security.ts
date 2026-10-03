@@ -1,3 +1,4 @@
+import { bodyLimit } from "hono/body-limit";
 import type { Context } from "hono";
 
 const FORM_LIMIT = 64 * 1024;
@@ -11,13 +12,7 @@ export async function sameOrigin(c: Context, next: () => Promise<void>) {
   return next();
 }
 
-export async function boundedBody(c: Context, next: () => Promise<void>) {
-  if (c.req.method === "GET") return next();
-  const contentLength = Number(c.req.header("Content-Length") ?? 0);
-  if (contentLength > FORM_LIMIT)
-    return c.text("Request body is too large.", 413);
-  const body = await c.req.arrayBuffer();
-  if (body.byteLength > FORM_LIMIT)
-    return c.text("Request body is too large.", 413);
-  return next();
-}
+export const boundedBody = bodyLimit({
+  maxSize: FORM_LIMIT,
+  onError: (c) => c.text("Request body is too large.", 413),
+});

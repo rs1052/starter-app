@@ -4,6 +4,14 @@ import { parseRuntimeConfig } from "../../src/runtime/config.js";
 const secret = "unit-test-secret-that-is-at-least-32-characters";
 
 describe("parseRuntimeConfig", () => {
+  it.each([undefined, "", "short"])(
+    "rejects an unset or short secret (%s)",
+    (value) => {
+      expect(() =>
+        parseRuntimeConfig({ BETTER_AUTH_SECRET: value }, false),
+      ).toThrow("BETTER_AUTH_SECRET must contain at least 32 characters");
+    },
+  );
   it("uses and normalizes development defaults", () => {
     expect(parseRuntimeConfig({ BETTER_AUTH_SECRET: secret }, false)).toEqual({
       authURL: "http://localhost:5173",

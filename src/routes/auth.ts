@@ -9,6 +9,20 @@ import { ResetPasswordPage } from "../views/pages/auth/reset-password.js";
 import type { Assets } from "../views/layouts/app.js";
 
 export function registerAuthRoutes(app: App, options: AppOptions) {
+  app.use("/api/auth/*", boundedBody);
+  app.use("/api/auth/*", async (c, next) => {
+    const path = c.req.path.replace(/\/+$/, "");
+    if (c.req.method === "POST" && path !== "/api/auth/sign-out") {
+      const client = await hashIdentity(options.authClientAddress(c.req.raw));
+      const limited = await checkAuthRateLimit(
+        c,
+        options,
+        `ip:${path}:${client}`,
+      );
+      if (limited) return limited;
+    }
+    await next();
+  });
   for (const path of [
     "/sign-up",
     "/sign-in",
@@ -213,8 +227,23 @@ async function enforceAuthRateLimit(
   action: "sign-in" | "sign-up" | "forgot-password",
   email: string,
 ) {
+  const client = await hashIdentity(options.authClientAddress(c.req.raw));
+  const limited = await checkAuthRateLimit(
+    c,
+    options,
+    `ip:${action}:${client}`,
+  );
+  if (limited) return limited;
   const identity = await hashIdentity(email);
-  const result = await options.authRateLimiter(`${action}:${identity}`);
+  return checkAuthRateLimit(c, options, `account:${action}:${identity}`);
+}
+
+async function checkAuthRateLimit(
+  c: Context,
+  options: AppOptions,
+  key: string,
+) {
+  const result = await options.authRateLimiter(key);
   if (result.allowed) return;
 
   if (result.retryAfter) c.header("Retry-After", String(result.retryAfter));

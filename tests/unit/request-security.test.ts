@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   closeAppFixture,
   createAppFixture,
@@ -11,6 +11,41 @@ let fixture: AppFixture;
 
 beforeEach(() => {
   fixture = createAppFixture();
+});
+
+it("stops reading an oversized stream and bounds Better Auth API bodies", async () => {
+  let reads = 0;
+  let streamController: ReadableStreamDefaultController<Uint8Array>;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      streamController = controller;
+    },
+    pull(controller) {
+      reads += 1;
+      controller.enqueue(new Uint8Array(16 * 1024));
+      if (reads === 100) controller.close();
+    },
+  });
+  const response = await fixture.app.fetch(
+    new Request(`${origin}/sign-in`, {
+      method: "POST",
+      headers: { origin },
+      body,
+      duplex: "half",
+    } as RequestInit),
+  );
+  expect(response.status).toBe(413);
+  expect(reads).toBeLessThan(100);
+  streamController!.close();
+
+  const handler = vi.spyOn(fixture.auth, "handler");
+  const apiResponse = await fixture.app.request("/api/auth/sign-in/email", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin },
+    body: JSON.stringify({ email: "a".repeat(70_000) }),
+  });
+  expect(apiResponse.status).toBe(413);
+  expect(handler).not.toHaveBeenCalled();
 });
 
 afterEach(() => closeAppFixture(fixture));

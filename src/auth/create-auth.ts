@@ -10,6 +10,7 @@ export interface AuthConfig {
   secret: string;
   sendEmail: SendEmail;
   trustedOrigins: string[];
+  ipAddressHeaders?: string[];
 }
 
 export function createAuth(database: DB, config: AuthConfig) {
@@ -23,6 +24,7 @@ export function createAuth(database: DB, config: AuthConfig) {
     }),
     emailAndPassword: {
       enabled: true,
+      revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
         await config.sendEmail({
           to: user.email,
@@ -32,6 +34,7 @@ export function createAuth(database: DB, config: AuthConfig) {
       },
     },
     advanced: {
+      ipAddress: { ipAddressHeaders: config.ipAddressHeaders },
       backgroundTasks: { handler: config.scheduleTask },
       defaultCookieAttributes: {
         httpOnly: true,

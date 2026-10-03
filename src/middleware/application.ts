@@ -21,12 +21,19 @@ export function registerApplicationMiddleware(app: App, auth: Auth) {
         imgSrc: ["'self'", "data:"],
         connectSrc: ["'self'"],
         frameAncestors: ["'none'"],
+        baseUri: ["'none'"],
+        objectSrc: ["'none'"],
+        formAction: ["'self'"],
       },
       referrerPolicy: "strict-origin-when-cross-origin",
     }),
   );
 
   app.use("*", async (c, next) => {
+    if (c.req.path === "/health" || c.req.path.startsWith("/api/auth/")) {
+      c.set("session", null);
+      return next();
+    }
     const session = await auth.api.getSession({
       headers: c.req.raw.headers,
     });

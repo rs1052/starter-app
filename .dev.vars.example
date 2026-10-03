@@ -1,0 +1,7 @@
+# Local Worker preview only. Generate a secret before starting preview.
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=http://127.0.0.1:4174
+TRUSTED_ORIGINS=http://127.0.0.1:4174
+EMAIL_FROM=Preview <no-reply@example.test>
+# Fake test key: email is configured, but delivery will fail.
+RESEND_API_KEY=re_preview_test_only

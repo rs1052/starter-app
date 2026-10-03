@@ -23,6 +23,13 @@ it("renders public routes, headers, and safe errors", async () => {
     "default-src 'self'",
   );
   expect(home.headers.get("x-request-id")).toBeTruthy();
+  for (const directive of [
+    "base-uri 'none'",
+    "object-src 'none'",
+    "form-action 'self'",
+  ]) {
+    expect(home.headers.get("content-security-policy")).toContain(directive);
+  }
 
   const missing = await fixture.app.request("/missing");
   expect(missing.status).toBe(404);

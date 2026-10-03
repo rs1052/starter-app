@@ -22,10 +22,12 @@ export function createAppFixture(
   overrides: {
     authRateLimiter?: AuthRateLimiter;
     healthCheck?: () => Promise<void>;
+    authClientAddress?: (request: Request) => string;
   } = {},
 ): AppFixture {
   const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
   const client = new Database(":memory:");
+  client.pragma("foreign_keys = ON");
   migrate(drizzle(client), { migrationsFolder: "drizzle" });
   const database = drizzle(client, { schema });
   const messages: EmailMessage[] = [];
@@ -40,6 +42,7 @@ export function createAppFixture(
   const app = createApp({
     assets: { css: "/assets/app.css", script: "/assets/app.js" },
     auth,
+    authClientAddress: overrides.authClientAddress ?? (() => "unit-client"),
     authRateLimiter:
       overrides.authRateLimiter ?? (async () => ({ allowed: true })),
     healthCheck: overrides.healthCheck ?? (async () => undefined),

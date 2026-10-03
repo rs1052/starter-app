@@ -46,10 +46,13 @@ export default {
       secret: config.secret,
       sendEmail,
       trustedOrigins: config.trustedOrigins,
+      ipAddressHeaders: ["cf-connecting-ip"],
     });
     return createApp({
       assets: { css: "/assets/app.css", script: "/assets/app.js" },
       auth,
+      authClientAddress: (request) =>
+        request.headers.get("CF-Connecting-IP") ?? "local-worker",
       authRateLimiter: async (key) => {
         const result = await env.AUTH_RATE_LIMITER.limit({ key });
         return { allowed: result.success, retryAfter: 60 };

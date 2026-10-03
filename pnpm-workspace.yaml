@@ -2,6 +2,8 @@ allowBuilds:
   better-sqlite3: true
   esbuild: true
   workerd: true
+minimumReleaseAge: 1440
+minimumReleaseAgeExcludePrune: true
 minimumReleaseAgeExclude:
   - "@cloudflare/vite-plugin@1.61.0"
   - "@cloudflare/workers-types@5.20260927.1"

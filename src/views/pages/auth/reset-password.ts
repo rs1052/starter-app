@@ -1,5 +1,5 @@
 import { html } from "hono/html";
-import { Button } from "../../components/button.js";
+import { SubmitButton } from "../../components/submit-button.js";
 import { FormField } from "../../components/form-field.js";
 import { Message } from "../../components/message.js";
 
@@ -39,7 +39,7 @@ export function ResetPasswordPage(options: {
               autocomplete: "new-password",
               maxLength: 128,
             })}
-            ${Button("Reset password")}
+            ${SubmitButton("Reset password")}
           </form>`
         : html`<p><a href="/forgot-password">Request a new reset link</a></p>`
     }

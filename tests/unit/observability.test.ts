@@ -14,7 +14,12 @@ beforeEach(() => {
 afterEach(() => closeAppFixture(fixture));
 
 it("logs correlated requests and reports health failures safely", async () => {
+  const sessionLookup = vi
+    .spyOn(fixture.auth.api, "getSession")
+    .mockRejectedValue(new Error("session database unavailable"));
   const healthy = await fixture.app.request("/health");
+  expect(healthy.status).toBe(200);
+  expect(sessionLookup).not.toHaveBeenCalled();
   const requestId = healthy.headers.get("x-request-id");
   expect(requestId).toBeTruthy();
   expect(
@@ -35,11 +40,15 @@ it("logs correlated requests and reports health failures safely", async () => {
       throw new Error("database details");
     },
   });
+  const failedSessionLookup = vi
+    .spyOn(fixture.auth.api, "getSession")
+    .mockRejectedValue(new Error("session database unavailable"));
   const unavailable = await fixture.app.request("/health");
   expect(unavailable.status).toBe(503);
   expect(await unavailable.json()).toEqual({ status: "unavailable" });
   const secondUnavailable = await fixture.app.request("/health");
   expect(await secondUnavailable.text()).not.toContain("database details");
+  expect(failedSessionLookup).not.toHaveBeenCalled();
 });
 
 it("returns and logs a correlation ID for uncaught errors", async () => {

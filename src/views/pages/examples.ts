@@ -1,5 +1,5 @@
 import { html } from "hono/html";
-import { Button } from "../components/button.js";
+import { SubmitButton } from "../components/submit-button.js";
 
 export function ExampleStatus(updated = false) {
   return html`<div id="server-status" class="example-result" aria-live="polite">
@@ -29,7 +29,7 @@ export function ExamplesPage(updated = false) {
           hx-target="#server-status"
           hx-swap="outerHTML"
         >
-          ${Button("Refresh from server")}
+          ${SubmitButton("Refresh from server")}
         </form>
       </article>
       <article x-data="{ open: false }">

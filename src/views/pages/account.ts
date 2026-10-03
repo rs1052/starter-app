@@ -1,5 +1,5 @@
 import { html } from "hono/html";
-import { Button } from "../components/button.js";
+import { SubmitButton } from "../components/submit-button.js";
 
 export function AccountPage(user: { email: string; name: string }) {
   return html`<section class="narrow">
@@ -15,6 +15,6 @@ export function AccountPage(user: { email: string; name: string }) {
         <dd>${user.email}</dd>
       </div>
     </dl>
-    <form method="post" action="/sign-out">${Button("Sign out")}</form>
+    <form method="post" action="/sign-out">${SubmitButton("Sign out")}</form>
   </section>`;
 }

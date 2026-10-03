@@ -3,8 +3,8 @@ import devServer, { defaultOptions } from "@hono/vite-dev-server";
 import nodeAdapter from "@hono/vite-dev-server/node";
 import { defineConfig } from "vite";
 
-export default defineConfig(({ command, mode }) => {
-  if (command === "serve") {
+export default defineConfig(({ command, mode, isPreview }) => {
+  if (command === "serve" && !isPreview) {
     return {
       plugins: [
         devServer({

@@ -13,6 +13,7 @@ try {
 const path = resolve(process.env.DATABASE_PATH ?? "data/app.db");
 mkdirSync(dirname(path), { recursive: true });
 const client = new Database(path);
+client.pragma("foreign_keys = ON");
 migrate(drizzle(client), { migrationsFolder: "drizzle" });
 client.close();
 console.log(`Applied migrations to ${path}`);
