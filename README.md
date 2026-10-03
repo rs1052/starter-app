@@ -13,9 +13,12 @@ Local development does not require Docker, a database server, or a Cloudflare ac
 ## Local setup
 
 ```sh
+git config core.hooksPath .githooks
 pnpm install --frozen-lockfile
 node -e "require('node:fs').copyFileSync('.env.example', '.env')"
 ```
+
+The Git configuration enables this repository's committed hooks for this clone. The pre-commit hook blocks direct commits to `main`.
 
 Replace `BETTER_AUTH_SECRET` in `.env` with at least 32 random characters. Generate a value with Node:
 

@@ -15,3 +15,12 @@
 - Run the narrowest relevant checks while working, then document and run all setup or verification commands promised to users. Report any failed checks. Keep generated runtime state out of Git.
 - Never discard or overwrite user changes. Inspect the final diff and repository status before finishing.
 - For work that needs a plan, use the global planning skill and follow its workflow. Do not copy the skill into this repository.
+
+## Discoverable code
+
+- Treat filenames, paths, exported symbols, types, and other identifiers as text-search terms. Prefer concise domain or responsibility names over generic `create`, `handle`, `data`, `result`, `config`, or `client` when specificity helps. Make important exported functions, types, classes, and modules easy to find without excessively long names.
+- Use one term and spelling per concept. Avoid unnecessary aliases and synonyms.
+- Keep TypeScript contracts precise. Prefer useful domain types over `any` or vague types, and make definitions understandable from their code and types without tracing unrelated files.
+- Put short comments at definitions when code cannot express an important reason, constraint, or non-obvious behavior. Do not restate the code.
+- Match source/test basenames when a test clearly covers one module. Keep integration and behavior tests named for the behavior they cover.
+- Remove obsolete code when practical. Clearly mark obsolete public code that must remain temporarily as deprecated.

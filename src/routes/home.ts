@@ -1,5 +1,5 @@
 import type { App, AppOptions } from "../app-types.js";
-import { page } from "../http/page.js";
+import { renderPage } from "../http/page.js";
 import { HomePage } from "../views/pages/home.js";
 
 export function registerHomeRoutes(app: App, options: AppOptions) {
@@ -11,5 +11,5 @@ export function registerHomeRoutes(app: App, options: AppOptions) {
       return c.json({ status: "unavailable" }, 503);
     }
   });
-  app.get("/", (c) => page(c, options.assets, "Home", HomePage()));
+  app.get("/", (c) => renderPage(c, options.assets, "Home", HomePage()));
 }

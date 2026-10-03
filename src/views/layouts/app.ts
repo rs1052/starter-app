@@ -1,13 +1,13 @@
 import { html } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
 
-export interface Assets {
+export interface PageAssetPaths {
   css: string;
   script: string;
 }
 
 export function AppLayout(options: {
-  assets: Assets;
+  assets: PageAssetPaths;
   children: HtmlEscapedString | Promise<HtmlEscapedString>;
   signedIn: boolean;
   title: string;

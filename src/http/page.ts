@@ -1,11 +1,11 @@
 import type { Context } from "hono";
 import type { HtmlEscapedString } from "hono/utils/html";
 import type { AppEnv } from "../app-types.js";
-import { AppLayout, type Assets } from "../views/layouts/app.js";
+import { AppLayout, type PageAssetPaths } from "../views/layouts/app.js";
 
-export function page(
+export function renderPage(
   c: Context<AppEnv>,
-  assets: Assets,
+  assets: PageAssetPaths,
   title: string,
   content: HtmlEscapedString | Promise<HtmlEscapedString>,
   status: 200 | 400 | 404 = 200,

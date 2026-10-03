@@ -1,11 +1,11 @@
 import type { App } from "../app-types.js";
-import { page } from "../http/page.js";
+import { renderPage } from "../http/page.js";
 import { logRequest } from "../middleware/application.js";
-import type { Assets } from "../views/layouts/app.js";
+import type { PageAssetPaths } from "../views/layouts/app.js";
 import { NotFoundPage } from "../views/pages/not-found.js";
 
-export function registerErrors(app: App, assets: Assets) {
-  app.notFound((c) => page(c, assets, "Not found", NotFoundPage(), 404));
+export function registerErrorHandlers(app: App, assets: PageAssetPaths) {
+  app.notFound((c) => renderPage(c, assets, "Not found", NotFoundPage(), 404));
   app.onError((error, c) => {
     const requestId = c.get("requestId");
     console.error(

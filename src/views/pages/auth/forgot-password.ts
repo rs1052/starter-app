@@ -1,7 +1,7 @@
 import { html } from "hono/html";
 import { SubmitButton } from "../../components/submit-button.js";
 import { FormField } from "../../components/form-field.js";
-import { Message } from "../../components/message.js";
+import { FeedbackMessage } from "../../components/feedback-message.js";
 
 export function ForgotPasswordPage(
   options: {
@@ -14,7 +14,7 @@ export function ForgotPasswordPage(
     return html`<section class="narrow">
       <p class="eyebrow">Check your email</p>
       <h1>Reset link requested</h1>
-      ${Message(
+      ${FeedbackMessage(
         "If an account exists for that email, a password reset link is on its way.",
       )}
       <p><a href="/sign-in">Return to sign in</a></p>
@@ -25,7 +25,7 @@ export function ForgotPasswordPage(
     <p class="eyebrow">Account recovery</p>
     <h1>Forgot your password?</h1>
     <p>Enter your email and we will send you a reset link.</p>
-    ${options.error ? Message(options.error, "error") : ""}
+    ${options.error ? FeedbackMessage(options.error, "error") : ""}
     <form method="post" action="/forgot-password" class="stack">
       ${FormField({
         name: "email",

@@ -1,13 +1,18 @@
 import type { App } from "../app-types.js";
-import { page } from "../http/page.js";
+import { renderPage } from "../http/page.js";
 import { boundedBody, sameOrigin } from "../middleware/request-security.js";
-import type { Assets } from "../views/layouts/app.js";
+import type { PageAssetPaths } from "../views/layouts/app.js";
 import { ExampleStatus, ExamplesPage } from "../views/pages/examples.js";
 
-export function registerExampleRoutes(app: App, assets: Assets) {
+export function registerExampleRoutes(app: App, assets: PageAssetPaths) {
   app.use("/examples/refresh", boundedBody);
   app.get("/examples", (c) =>
-    page(c, assets, "Examples", ExamplesPage(c.req.query("updated") === "1")),
+    renderPage(
+      c,
+      assets,
+      "Examples",
+      ExamplesPage(c.req.query("updated") === "1"),
+    ),
   );
   app.post("/examples/refresh", sameOrigin, (c) => {
     if (c.req.header("HX-Request") === "true")
