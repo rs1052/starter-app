@@ -31,10 +31,10 @@ export function parseRuntimeConfig(
   }
   const emailFrom = optionalValue(values.EMAIL_FROM);
   const resendApiKey = optionalValue(values.RESEND_API_KEY);
-  if (production && (!emailFrom || !resendApiKey)) {
-    throw new Error("EMAIL_FROM and RESEND_API_KEY are required in production");
+  if (production && !emailFrom) {
+    throw new Error("EMAIL_FROM is required in production");
   }
-  if (Boolean(emailFrom) !== Boolean(resendApiKey)) {
+  if (!production && Boolean(emailFrom) !== Boolean(resendApiKey)) {
     throw new Error(
       "EMAIL_FROM and RESEND_API_KEY must be configured together",
     );
