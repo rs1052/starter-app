@@ -16,7 +16,7 @@ beforeEach(() => {
 
 afterEach(() => closeAppFixture(fixture));
 
-it("persists a session, protects the account, escapes values, and signs out", async () => {
+it("requires email verification, persists a session, escapes values, and signs out", async () => {
   const anonymous = await fixture.app.request("/account");
   expect(anonymous.status).toBe(302);
 
@@ -25,8 +25,32 @@ it("persists a session, protects the account, escapes values, and signs out", as
     email: "unit@example.com",
     password: "correct-horse-battery-staple",
   });
-  expect(signUp.status).toBe(303);
-  const cookie = signUp.headers.get("set-cookie")?.split(";", 1)[0];
+  expect(signUp.status).toBe(200);
+  expect(await signUp.text()).toContain("Check your email");
+  expect(signUp.headers.get("set-cookie")).toBeNull();
+  expect(
+    fixture.client
+      .prepare("select email_verified from user where email = ?")
+      .get("unit@example.com"),
+  ).toEqual({ email_verified: 0 });
+  const credentials = {
+    email: "unit@example.com",
+    password: "correct-horse-battery-staple",
+  };
+  expect((await formRequest(fixture.app, "/sign-in", credentials)).status).toBe(
+    400,
+  );
+  const verification = fixture.messages.find(
+    (message) => message.subject === "Verify your email",
+  );
+  const url = verification?.text.match(/https?:\/\/\S+/)?.[0];
+  expect(url).toBeTruthy();
+  const verified = await fixture.app.request(url!);
+  expect(verified.status).toBe(302);
+  expect(verified.headers.get("location")).toBe("/sign-in?verified=1");
+  const signIn = await formRequest(fixture.app, "/sign-in", credentials);
+  expect(signIn.status).toBe(303);
+  const cookie = signIn.headers.get("set-cookie")?.split(";", 1)[0];
   expect(cookie).toBeTruthy();
 
   const account = await fixture.app.request("/account", {
@@ -42,6 +66,136 @@ it("persists a session, protects the account, escapes values, and signs out", as
     headers: { cookie: cookie!, origin },
   });
   expect(signOut.status).toBe(303);
+});
+
+it("resends verification with a generic response and client/account rate limits", async () => {
+  closeAppFixture(fixture);
+  const limiter = vi.fn<AuthRateLimiter>(async () => ({ allowed: true }));
+  fixture = createAppFixture({ authRateLimiter: limiter });
+  await formRequest(fixture.app, "/sign-up", {
+    name: "User",
+    email: "resend@example.com",
+    password: "test-password",
+  });
+  const known = await formRequest(fixture.app, "/verify-email", {
+    email: "resend@example.com",
+  });
+  const unknown = await formRequest(fixture.app, "/verify-email", {
+    email: "unknown@example.com",
+  });
+  expect(known.status).toBe(200);
+  expect(unknown.status).toBe(known.status);
+  expect(await unknown.text()).toBe(await known.text());
+  expect(fixture.messages).toHaveLength(2);
+  expect(limiter.mock.calls.map(([key]) => key).slice(2, 4)).toEqual([
+    expect.stringMatching(/^ip:verify-email:/),
+    expect.stringMatching(/^account:verify-email:/),
+  ]);
+});
+
+it("changes a password, rotates the current session, and revokes other sessions", async () => {
+  const credentials = {
+    email: "password@example.com",
+    password: "old-password-value",
+  };
+  await formRequest(fixture.app, "/sign-up", {
+    ...credentials,
+    name: "Password User",
+  });
+  await fixture.app.request(
+    fixture.messages[0]!.text.match(/https?:\/\/\S+/)![0],
+  );
+  const first = await formRequest(fixture.app, "/sign-in", credentials);
+  const second = await formRequest(fixture.app, "/sign-in", credentials);
+  const firstCookie = first.headers.get("set-cookie")!.split(";", 1)[0]!;
+  const secondCookie = second.headers.get("set-cookie")!.split(";", 1)[0]!;
+  const fields = {
+    currentPassword: credentials.password,
+    newPassword: "new-password-value",
+    passwordConfirmation: "new-password-value",
+  };
+  const change = (cookie: string, values = fields, requestOrigin = origin) =>
+    fixture.app.request("/account/password", {
+      method: "POST",
+      headers: { cookie, origin: requestOrigin },
+      body: new URLSearchParams(values),
+    });
+  expect(
+    (await change(firstCookie, fields, "https://other.example.com")).status,
+  ).toBe(403);
+  expect(
+    (
+      await change(firstCookie, {
+        ...fields,
+        currentPassword: "incorrect-password",
+      })
+    ).status,
+  ).toBe(400);
+  const response = await change(firstCookie);
+  expect(response.status).toBe(303);
+  expect(response.headers.get("location")).toBe("/account?passwordChanged=1");
+  const newCookie = response.headers.get("set-cookie")!.split(";", 1)[0]!;
+  expect(
+    (await fixture.app.request("/account", { headers: { cookie: newCookie } }))
+      .status,
+  ).toBe(200);
+  expect(
+    (
+      await fixture.app.request("/account", {
+        headers: { cookie: secondCookie },
+      })
+    ).status,
+  ).toBe(302);
+  expect(
+    (
+      await formRequest(fixture.app, "/sign-in", {
+        ...credentials,
+        password: fields.newPassword,
+      })
+    ).status,
+  ).toBe(303);
+});
+
+it("protects password changes with authentication, body limits, and rate limits", async () => {
+  closeAppFixture(fixture);
+  const limiter = vi.fn<AuthRateLimiter>(async () => ({ allowed: true }));
+  fixture = createAppFixture({ authRateLimiter: limiter });
+  const fields = {
+    currentPassword: "old-password",
+    newPassword: "new-password",
+    passwordConfirmation: "new-password",
+  };
+  const api = vi.spyOn(fixture.auth.api, "changePassword");
+  expect(
+    (await formRequest(fixture.app, "/account/password", fields)).status,
+  ).toBe(303);
+  expect(
+    (
+      await formRequest(fixture.app, "/account/password", {
+        ...fields,
+        currentPassword: "x".repeat(65 * 1024),
+      })
+    ).status,
+  ).toBe(413);
+  expect(api).not.toHaveBeenCalled();
+  const credentials = {
+    email: "limited@example.com",
+    password: "old-password",
+  };
+  await formRequest(fixture.app, "/sign-up", { ...credentials, name: "User" });
+  await fixture.app.request(
+    fixture.messages[0]!.text.match(/https?:\/\/\S+/)![0],
+  );
+  const signIn = await formRequest(fixture.app, "/sign-in", credentials);
+  const cookie = signIn.headers.get("set-cookie")!.split(";", 1)[0]!;
+  limiter.mockResolvedValue({ allowed: false, retryAfter: 60 });
+  const limited = await fixture.app.request("/account/password", {
+    method: "POST",
+    headers: { cookie, origin },
+    body: new URLSearchParams(fields),
+  });
+  expect(limited.status).toBe(429);
+  expect(api).not.toHaveBeenCalled();
 });
 
 it("rate-limits authentication before calling Better Auth", async () => {

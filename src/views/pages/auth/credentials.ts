@@ -6,6 +6,7 @@ import { FeedbackMessage } from "../../components/feedback-message.js";
 export function CredentialsPage(options: {
   email?: string;
   error?: string;
+  success?: string;
   mode: "sign-in" | "sign-up";
 }) {
   const signUp = options.mode === "sign-up";
@@ -13,6 +14,7 @@ export function CredentialsPage(options: {
     <p class="eyebrow">${signUp ? "Get started" : "Welcome back"}</p>
     <h1>${signUp ? "Create your account" : "Sign in"}</h1>
     ${options.error ? FeedbackMessage(options.error, "error") : ""}
+    ${options.success ? FeedbackMessage(options.success) : ""}
     <form method="post" action="/${options.mode}" class="stack">
       ${
         signUp
@@ -50,7 +52,8 @@ export function CredentialsPage(options: {
     ${
       signUp
         ? ""
-        : html`<p><a href="/forgot-password">Forgot your password?</a></p>`
+        : html`<p><a href="/forgot-password">Forgot your password?</a></p>
+            <p><a href="/verify-email">Resend verification email</a></p>`
     }
   </section>`;
 }

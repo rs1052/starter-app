@@ -16,12 +16,20 @@ beforeEach(() => {
 afterEach(() => closeAppFixture(fixture));
 
 it("requests and completes a password reset without account enumeration", async () => {
-  const signUp = await formRequest(fixture.app, "/sign-up", {
+  await formRequest(fixture.app, "/sign-up", {
     name: "Reset User",
     email: "reset@example.com",
     password: "old-password-value",
   });
-  const cookie = signUp.headers.get("set-cookie")!.split(";", 1)[0]!;
+  await fixture.app.request(
+    fixture.messages[0]!.text.match(/https?:\/\/\S+/)![0],
+  );
+  fixture.messages.length = 0;
+  const signInBeforeReset = await formRequest(fixture.app, "/sign-in", {
+    email: "reset@example.com",
+    password: "old-password-value",
+  });
+  const cookie = signInBeforeReset.headers.get("set-cookie")!.split(";", 1)[0]!;
   expect(
     (await fixture.app.request("/account", { headers: { cookie } })).status,
   ).toBe(200);
