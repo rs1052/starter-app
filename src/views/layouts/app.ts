@@ -18,7 +18,10 @@ export function AppLayout(options: {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="color-scheme" content="light dark" />
+        <meta name="theme-color" content="#0f172a" />
         <title>${options.title} | Hono starter</title>
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         <link rel="stylesheet" href="${options.assets.css}" />
         <script type="module" src="${options.assets.script}"></script>
       </head>

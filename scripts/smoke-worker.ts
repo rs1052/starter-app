@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createEmailVerificationToken } from "better-auth/api";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -270,9 +271,32 @@ try {
     assert.match(await response.text(), /worker-smoke@example\.com/);
   }
   assert.equal((await request("/sign-up")).status, 200);
-  // Signup and signin do not send email. Do not exercise password reset here.
-  await form("/sign-up", { name: "Worker Smoke", email, password }, "/account");
-  assert(cookies.size > 0, "Signup did not set session cookies");
+  const signUp = await request("/sign-up", {
+    method: "POST",
+    headers: { Origin: origin },
+    body: new URLSearchParams({ name: "Worker Smoke", email, password }),
+  });
+  assert.equal(signUp.status, 200);
+  assert.match(await signUp.text(), /Check your email/);
+  assert.equal(cookies.size, 0, "Unverified signup created a session");
+  const unverified = await request("/sign-in", {
+    method: "POST",
+    headers: { Origin: origin },
+    body: new URLSearchParams({ email, password }),
+  });
+  assert.equal(unverified.status, 400);
+  // Use Better Auth's token generator and the disposable secret, not real email delivery.
+  const token = await createEmailVerificationToken(
+    vars.BETTER_AUTH_SECRET,
+    email,
+  );
+  const verified = await request(
+    `/api/auth/verify-email?token=${token}&callbackURL=${encodeURIComponent("/sign-in?verified=1")}`,
+  );
+  assert.equal(verified.status, 302);
+  assert.equal(verified.headers.get("location"), "/sign-in?verified=1");
+  await form("/sign-in", { email, password }, "/account");
+  assert(cookies.size > 0, "Signin did not set session cookies");
   await account();
   await homepage(true);
   await form("/sign-out", {}, "/");

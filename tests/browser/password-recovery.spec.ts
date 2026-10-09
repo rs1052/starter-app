@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import Database from "better-sqlite3";
+import { verifyBrowserEmail } from "./auth-fixture.js";
 
 test("a user can reset a forgotten password", async ({ page }) => {
   const email = `reset-${Date.now()}@example.com`;
@@ -8,7 +9,7 @@ test("a user can reset a forgotten password", async ({ page }) => {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("old-password-value");
   await page.getByRole("button", { name: "Create account" }).click();
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await verifyBrowserEmail(page, email);
 
   await page.goto("/forgot-password");
   await page.getByLabel("Email").fill(email);
@@ -18,6 +19,7 @@ test("a user can reset a forgotten password", async ({ page }) => {
   );
 
   const database = new Database("data/test-browser.db", { readonly: true });
+  database.pragma("foreign_keys = ON");
   const result = database
     .prepare(
       "select identifier from verification where identifier like 'reset-password:%' order by created_at desc limit 1",

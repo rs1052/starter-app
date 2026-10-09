@@ -14,6 +14,14 @@ export interface AuthConfig {
 }
 
 export function createAuth(database: DB, config: AuthConfig) {
+  const sendAuthEmail: SendEmail = async (message) => {
+    config.scheduleTask(
+      config.sendEmail(message).catch(() => {
+        console.error("Transactional email delivery failed.");
+      }),
+    );
+  };
+
   return betterAuth({
     baseURL: config.baseURL,
     secret: config.secret,
@@ -24,12 +32,25 @@ export function createAuth(database: DB, config: AuthConfig) {
     }),
     emailAndPassword: {
       enabled: true,
+      requireEmailVerification: true,
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
-        await config.sendEmail({
+        await sendAuthEmail({
           to: user.email,
           subject: "Reset your password",
           text: `Use this link to reset your password: ${url}\n\nThis link expires in one hour. If you did not request it, you can ignore this email.`,
+        });
+      },
+    },
+    emailVerification: {
+      sendOnSignUp: true,
+      sendOnSignIn: true,
+      autoSignInAfterVerification: false,
+      sendVerificationEmail: async ({ user, url }) => {
+        await sendAuthEmail({
+          to: user.email,
+          subject: "Verify your email",
+          text: `Use this link to verify ownership of your email address: ${url}\n\nThis link expires in one hour. If you did not create this account, you can ignore this email.`,
         });
       },
     },

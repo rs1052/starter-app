@@ -1,11 +1,13 @@
 import type { Context } from "hono";
 import type { App, AppEnv, AppOptions } from "../app-types.js";
+import { checkAuthRateLimit } from "../auth/rate-limit.js";
 import { renderPage } from "../http/page.js";
 import { boundedBody, sameOrigin } from "../middleware/request-security.js";
 import { AccountPage } from "../views/pages/account.js";
 import { CredentialsPage } from "../views/pages/auth/credentials.js";
 import { ForgotPasswordPage } from "../views/pages/auth/forgot-password.js";
 import { ResetPasswordPage } from "../views/pages/auth/reset-password.js";
+import { VerifyEmailPage } from "../views/pages/auth/verify-email.js";
 import type { PageAssetPaths } from "../views/layouts/app.js";
 
 export function registerAuthRoutes(app: App, options: AppOptions) {
@@ -13,12 +15,7 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
   app.use("/api/auth/*", async (c, next) => {
     const path = c.req.path.replace(/\/+$/, "");
     if (c.req.method === "POST" && path !== "/api/auth/sign-out") {
-      const client = await hashIdentity(options.authClientAddress(c.req.raw));
-      const limited = await checkAuthRateLimit(
-        c,
-        options,
-        `ip:${path}:${client}`,
-      );
+      const limited = await enforceAuthRateLimit(c, options, path);
       if (limited) return limited;
     }
     await next();
@@ -29,6 +26,8 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
     "/sign-out",
     "/forgot-password",
     "/reset-password",
+    "/verify-email",
+    "/account/password",
   ]) {
     app.use(path, boundedBody);
     app.use(path, sameOrigin);
@@ -50,13 +49,57 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
       c,
       options.assets,
       "Sign in",
-      CredentialsPage({ mode: "sign-in" }),
+      CredentialsPage({
+        mode: "sign-in",
+        success:
+          c.req.query("verified") === "1" && !c.req.query("error")
+            ? "Your email is verified. You can now sign in."
+            : undefined,
+        error: c.req.query("error")
+          ? "This verification link is invalid or has expired. Request a new link."
+          : undefined,
+      }),
     );
   });
 
   app.get("/forgot-password", (c) =>
     renderPage(c, options.assets, "Forgot password", ForgotPasswordPage()),
   );
+
+  app.get("/verify-email", (c) =>
+    renderPage(c, options.assets, "Verify email", VerifyEmailPage()),
+  );
+
+  app.post("/verify-email", async (c) => {
+    const form = await readEmail(c);
+    if (form.error) {
+      return renderPage(
+        c,
+        options.assets,
+        "Verify email",
+        VerifyEmailPage(form),
+        400,
+      );
+    }
+    const limited = await enforceAuthRateLimit(
+      c,
+      options,
+      "verify-email",
+      form.email,
+    );
+    if (limited) return limited;
+    await options.auth.api.sendVerificationEmail({
+      body: { email: form.email, callbackURL: "/sign-in?verified=1" },
+      headers: c.req.raw.headers,
+      asResponse: true,
+    });
+    return renderPage(
+      c,
+      options.assets,
+      "Check your email",
+      VerifyEmailPage({ sent: true }),
+    );
+  });
 
   app.get("/reset-password", (c) => {
     const token = c.req.query("token") ?? "";
@@ -99,7 +142,12 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
     if (limited) return limited;
 
     const response = await options.auth.api.signUpEmail({
-      body: { email: form.email, name: form.name, password: form.password },
+      body: {
+        email: form.email,
+        name: form.name,
+        password: form.password,
+        callbackURL: "/sign-in?verified=1",
+      },
       headers: c.req.raw.headers,
       asResponse: true,
     });
@@ -130,7 +178,11 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
     if (limited) return limited;
 
     const response = await options.auth.api.signInEmail({
-      body: { email: form.email, password: form.password },
+      body: {
+        email: form.email,
+        password: form.password,
+        callbackURL: "/sign-in?verified=1",
+      },
       headers: c.req.raw.headers,
       asResponse: true,
     });
@@ -203,7 +255,61 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
   app.get("/account", (c) => {
     const current = c.get("session");
     if (!current) return c.redirect("/sign-in");
-    return renderPage(c, options.assets, "Account", AccountPage(current.user));
+    return renderPage(
+      c,
+      options.assets,
+      "Account",
+      AccountPage(current.user, {
+        success: c.req.query("passwordChanged") === "1",
+      }),
+    );
+  });
+
+  app.post("/account/password", async (c) => {
+    const current = c.get("session");
+    if (!current) return c.redirect("/sign-in", 303);
+    const limited = await enforceAuthRateLimit(
+      c,
+      options,
+      "change-password",
+      current.user.email,
+    );
+    if (limited) return limited;
+
+    const form = await readChangePassword(c);
+    if (form.error) {
+      return renderPage(
+        c,
+        options.assets,
+        "Account",
+        AccountPage(current.user, { error: form.error }),
+        400,
+      );
+    }
+    const response = await options.auth.api.changePassword({
+      body: {
+        currentPassword: form.currentPassword,
+        newPassword: form.newPassword,
+        revokeOtherSessions: true,
+      },
+      headers: c.req.raw.headers,
+      asResponse: true,
+    });
+    if (!response.ok) {
+      return renderPage(
+        c,
+        options.assets,
+        "Account",
+        AccountPage(current.user, {
+          error:
+            "The password could not be changed. Check your current password and try again.",
+        }),
+        400,
+      );
+    }
+    const headers = new Headers(response.headers);
+    headers.set("location", "/account?passwordChanged=1");
+    return new Response(null, { status: 303, headers });
   });
 
   app.post("/sign-out", async (c) => {
@@ -224,38 +330,19 @@ export function registerAuthRoutes(app: App, options: AppOptions) {
 async function enforceAuthRateLimit(
   c: Context,
   options: AppOptions,
-  action: "sign-in" | "sign-up" | "forgot-password",
-  email: string,
+  action: string,
+  email?: string,
 ) {
-  const client = await hashIdentity(options.authClientAddress(c.req.raw));
-  const limited = await checkAuthRateLimit(
-    c,
-    options,
-    `ip:${action}:${client}`,
+  const result = await checkAuthRateLimit(
+    options.authRateLimiter,
+    action,
+    options.authClientAddress(c.req.raw),
+    email,
   );
-  if (limited) return limited;
-  const identity = await hashIdentity(email);
-  return checkAuthRateLimit(c, options, `account:${action}:${identity}`);
-}
-
-async function checkAuthRateLimit(
-  c: Context,
-  options: AppOptions,
-  key: string,
-) {
-  const result = await options.authRateLimiter(key);
   if (result.allowed) return;
 
   if (result.retryAfter) c.header("Retry-After", String(result.retryAfter));
   return c.text("Too many attempts. Try again later.", 429);
-}
-
-async function hashIdentity(value: string) {
-  const bytes = new TextEncoder().encode(value.trim().toLowerCase());
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
 }
 
 async function readCredentials(c: Context, includeName: boolean) {
@@ -311,6 +398,27 @@ async function readResetPassword(c: Context) {
   return { error, password, token };
 }
 
+async function readChangePassword(c: Context) {
+  const body = await c.req.parseBody();
+  const currentPassword =
+    typeof body.currentPassword === "string" ? body.currentPassword : "";
+  const newPassword =
+    typeof body.newPassword === "string" ? body.newPassword : "";
+  const confirmation =
+    typeof body.passwordConfirmation === "string"
+      ? body.passwordConfirmation
+      : "";
+  let error: string | undefined;
+  if (!currentPassword || currentPassword.length > 128) {
+    error = "Enter your current password.";
+  } else if (newPassword.length < 8 || newPassword.length > 128) {
+    error = "Use a password between 8 and 128 characters.";
+  } else if (newPassword !== confirmation) {
+    error = "The passwords do not match.";
+  }
+  return { error, currentPassword, newPassword };
+}
+
 async function authResult(
   c: Context<AppEnv>,
   response: Response,
@@ -319,6 +427,14 @@ async function authResult(
   email: string,
 ) {
   if (response.ok) {
+    if (mode === "sign-up") {
+      return renderPage(
+        c,
+        assets,
+        "Check your email",
+        VerifyEmailPage({ sent: true, email }),
+      );
+    }
     const headers = new Headers(response.headers);
     headers.set("location", "/account");
     return new Response(null, { status: 303, headers });
