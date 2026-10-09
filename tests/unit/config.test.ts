@@ -30,7 +30,6 @@ describe("parseRuntimeConfig", () => {
           BETTER_AUTH_SECRET: secret,
           BETTER_AUTH_URL: "https://example.com/",
           EMAIL_FROM: "App <no-reply@example.com>",
-          RESEND_API_KEY: "test-key",
           TRUSTED_ORIGINS: " https://example.com, https://admin.example.com/ ",
         },
         true,
@@ -39,7 +38,7 @@ describe("parseRuntimeConfig", () => {
       authURL: "https://example.com",
       emailFrom: "App <no-reply@example.com>",
       production: true,
-      resendApiKey: "test-key",
+      resendApiKey: undefined,
       secret,
       trustedOrigins: ["https://example.com", "https://admin.example.com"],
     });
@@ -52,7 +51,6 @@ describe("parseRuntimeConfig", () => {
           BETTER_AUTH_SECRET: secret,
           BETTER_AUTH_URL: "http://127.0.0.1:4173",
           EMAIL_FROM: "App <no-reply@example.com>",
-          RESEND_API_KEY: "test-key",
         },
         true,
       ).authURL,
@@ -74,16 +72,35 @@ describe("parseRuntimeConfig", () => {
         },
         true,
       ),
-    ).toThrow("EMAIL_FROM and RESEND_API_KEY are required in production");
+    ).toThrow("EMAIL_FROM is required in production");
   });
 
-  it("requires development email settings together", () => {
+  it.each([
+    { RESEND_API_KEY: "test-key" },
+    { EMAIL_FROM: "App <no-reply@example.com>" },
+  ])("requires development email settings together (%o)", (emailSettings) => {
     expect(() =>
       parseRuntimeConfig(
-        { BETTER_AUTH_SECRET: secret, RESEND_API_KEY: "test-key" },
+        { BETTER_AUTH_SECRET: secret, ...emailSettings },
         false,
       ),
     ).toThrow("EMAIL_FROM and RESEND_API_KEY must be configured together");
+  });
+
+  it("accepts optional Resend delivery in Node development", () => {
+    expect(
+      parseRuntimeConfig(
+        {
+          BETTER_AUTH_SECRET: secret,
+          EMAIL_FROM: " App <no-reply@example.com> ",
+          RESEND_API_KEY: " test-key ",
+        },
+        false,
+      ),
+    ).toMatchObject({
+      emailFrom: "App <no-reply@example.com>",
+      resendApiKey: "test-key",
+    });
   });
 
   it.each([

@@ -155,7 +155,6 @@ try {
     BETTER_AUTH_URL: origin,
     TRUSTED_ORIGINS: origin,
     EMAIL_FROM: "Worker Smoke <smoke@example.com>",
-    RESEND_API_KEY: "re_worker_smoke_fake_not_a_real_key",
   };
   const worker = wrangler([
     "dev",
@@ -285,6 +284,16 @@ try {
     body: new URLSearchParams({ email, password }),
   });
   assert.equal(unverified.status, 400);
+  const emailReadyBy = Date.now() + 5_000;
+  while (
+    !output.includes("Subject: Verify your email") &&
+    Date.now() < emailReadyBy
+  ) {
+    await delay(100, undefined, { signal: controller.signal });
+  }
+  assert.match(output, /send_email binding called with MessageBuilder:/);
+  assert.match(output, /Subject: Verify your email/);
+  assert.doesNotMatch(output, /Transactional email delivery failed\./);
   // Use Better Auth's token generator and the disposable secret, not real email delivery.
   const token = await createEmailVerificationToken(
     vars.BETTER_AUTH_SECRET,
@@ -308,7 +317,7 @@ try {
   await form("/sign-in", { email, password }, "/account");
   await account();
   console.log(
-    "Worker smoke passed: D1 migrations, health, pages, assets, and auth forms.",
+    "Worker smoke passed: D1 migrations, health, pages, assets, auth forms, and simulated email delivery.",
   );
 } catch (error) {
   console.error(output);
