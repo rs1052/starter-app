@@ -10,13 +10,15 @@ if (nodeMajor < 24 || (nodeMajor === 24 && nodeMinor < 21)) {
   );
 }
 
-export default defineConfig(({ command, isPreview, mode }) => {
-  if (command === "serve" && !isPreview) {
-    const local = loadEnv(mode, process.cwd(), "");
-    if (!local.EMAIL_FROM?.trim()) {
-      process.env.EMAIL_FROM = "Local <no-reply@example.test>";
-    }
+function configureLocalEmail(mode: string) {
+  const local = loadEnv(mode, process.cwd(), "");
+  if (!local.EMAIL_FROM?.trim()) {
+    process.env.EMAIL_FROM = "Local <no-reply@example.test>";
   }
+}
+
+export default defineConfig(({ command, isPreview, mode }) => {
+  if (command === "serve" && !isPreview) configureLocalEmail(mode);
 
   return {
     plugins: [voidPlugin({ persistTo: process.env.LOCAL_D1_STATE ?? ".void" })],

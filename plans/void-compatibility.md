@@ -312,3 +312,8 @@ Focused ESLint, type checking, all 20 runtime-configuration tests (including
 production sender requirements), and all five browser flows with a blank sender
 passed. The browser preparation also built the production Worker successfully.
 Independent review of the startup fix passed with no blocking findings.
+
+The follow-up CI run passed runtime/browser/accessibility checks but failed
+Fallow's estimated complexity limit on the Vite config factory. Local email setup
+was separated into a private configuration helper without changing behavior or
+thresholds; focused formatting, ESLint, and Fallow checks then passed.
