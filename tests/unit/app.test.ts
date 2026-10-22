@@ -13,12 +13,10 @@ beforeEach(() => {
 
 afterEach(() => closeAppFixture(fixture));
 
-it("renders public routes, headers, and safe errors", async () => {
+it("prepares public page data, headers, and safe errors", async () => {
   const home = await fixture.app.request("/");
   expect(home.status).toBe(200);
-  expect(await home.text()).toContain(
-    "Build server-rendered Hono applications",
-  );
+  expect(await home.json()).toEqual({ title: "Home" });
   expect(home.headers.get("content-security-policy")).toContain(
     "default-src 'self'",
   );
@@ -33,5 +31,5 @@ it("renders public routes, headers, and safe errors", async () => {
 
   const missing = await fixture.app.request("/missing");
   expect(missing.status).toBe(404);
-  expect(await missing.text()).toContain("The requested page does not exist.");
+  expect(await missing.json()).toEqual({ title: "Not found" });
 });

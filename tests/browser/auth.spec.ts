@@ -33,6 +33,28 @@ test("a user can create an account, access it, and sign out", async ({
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/account$/);
   await expect(page.getByText(email)).toBeVisible();
+  await expect(
+    page.getByRole("navigation").getByRole("link", { name: "Account" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation").getByRole("link", { name: "Sign in" }),
+  ).toHaveCount(0);
+
+  await page.getByLabel("Current password").fill("incorrect-password");
+  await page
+    .getByLabel("New password", { exact: true })
+    .fill("new-browser-password");
+  await page.getByLabel("Confirm new password").fill("new-browser-password");
+  const invalid = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/account/password") &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Change password" }).click();
+  expect((await invalid).status()).toBe(400);
+  await expect(page.getByRole("alert")).toContainText(
+    "Check your current password",
+  );
 
   await page
     .getByLabel("Current password")
@@ -49,4 +71,7 @@ test("a user can create an account, access it, and sign out", async ({
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.goto("/account");
   await expect(page).toHaveURL(/\/sign-in$/);
+  await expect(
+    page.getByRole("navigation").getByRole("link", { name: "Account" }),
+  ).toHaveCount(0);
 });

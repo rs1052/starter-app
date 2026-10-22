@@ -17,6 +17,6 @@ export function createApp(options: AppOptions) {
   registerHomeRoutes(app);
   registerAuthRoutes(app);
   registerExampleRoutes(app);
-  registerErrorHandlers(app, options.assets);
+  registerErrorHandlers(app);
   return app;
 }

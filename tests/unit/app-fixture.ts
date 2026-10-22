@@ -40,7 +40,6 @@ export function createAppFixture(
     trustedOrigins: [origin],
   });
   const app = createApp({
-    assets: { css: "/assets/app.css", script: "/assets/app.js" },
     auth,
     authClientAddress: overrides.authClientAddress ?? (() => "unit-client"),
     authRateLimiter:

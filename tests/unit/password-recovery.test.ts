@@ -71,7 +71,7 @@ it("requests and completes a password reset without account enumeration", async 
     passwordConfirmation: "new-password-value",
   });
   expect(reset.status).toBe(200);
-  expect(await reset.text()).toContain("Your password has been reset");
+  expect(await reset.json()).toMatchObject({ success: true, token: "" });
   expect(
     (await fixture.app.request("/account", { headers: { cookie } })).status,
   ).toBe(302);

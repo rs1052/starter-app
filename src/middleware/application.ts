@@ -42,6 +42,9 @@ export function sessionLookup(auth: Auth) {
       headers: c.req.raw.headers,
     });
     c.set("appSession", session);
+    c.set("shared", { signedIn: Boolean(session) });
+    c.header("Cache-Control", "no-store");
+    c.header("Vary", "X-VoidPages");
     await next();
   };
 }

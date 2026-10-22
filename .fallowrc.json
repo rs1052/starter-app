@@ -2,10 +2,12 @@
   "$schema": "./node_modules/fallow/schema.json",
   "entry": [
     "env.ts",
+    "resources/css/app.css",
     "src/runtime/cloudflare.ts",
     "routes/**/*.ts",
     "middleware/*.ts",
-    "resources/js/app.ts",
+    "pages/**/*.vue",
+    "pages/**/*.server.ts",
     "scripts/*.ts",
     "tests/**/*.ts",
     "*.config.{ts,js}"

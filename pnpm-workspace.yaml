@@ -6,6 +6,7 @@ minimumReleaseAge: 1440
 minimumReleaseAgeExcludePrune: true
 minimumReleaseAgeExclude:
   - "void@1.2.0"
+  - "@void/vue@1.2.0"
   - "@void/deploy-cloudflare@1.2.0"
   - "@void/deploy-core@1.2.0"
   - "@void/edge@1.2.0"

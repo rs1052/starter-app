@@ -1,6 +1,20 @@
 import { defineConfig } from "void/config";
 
 export default defineConfig({
+  head: {
+    titleTemplate: "%s | Hono starter",
+    htmlAttrs: { lang: "en" },
+    meta: [
+      { charset: "utf-8" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "color-scheme", content: "light dark" },
+      { name: "theme-color", content: "#0f172a" },
+    ],
+    link: [
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
+    ],
+  },
   worker: { compatibility_date: "2026-09-27" },
   cloudflare: {
     name: "hono-dual-runtime-starter",

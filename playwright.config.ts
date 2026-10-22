@@ -3,6 +3,8 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "tests/browser",
   fullyParallel: false,
+  // Local D1 is one SQLite file; parallel workers can collide and return 500s.
+  workers: 1,
   retries: process.env.CI ? 2 : 0,
   use: {
     baseURL: "http://127.0.0.1:4173",

@@ -4,12 +4,6 @@ import type { App, AppEnv, AppOptions } from "../app-types.js";
 import { checkAuthRateLimit } from "../auth/rate-limit.js";
 import { renderPage } from "../http/page.js";
 import { boundedBody, sameOrigin } from "../middleware/request-security.js";
-import { AccountPage } from "../views/pages/account.js";
-import { CredentialsPage } from "../views/pages/auth/credentials.js";
-import { ForgotPasswordPage } from "../views/pages/auth/forgot-password.js";
-import { ResetPasswordPage } from "../views/pages/auth/reset-password.js";
-import { VerifyEmailPage } from "../views/pages/auth/verify-email.js";
-import type { PageAssetPaths } from "../views/layouts/app.js";
 
 export function registerAuthRoutes(app: App) {
   app.use("*", authRequestSecurity);
@@ -62,24 +56,16 @@ async function limitAuthApi(c: Context<AppEnv>, next: () => Promise<void>) {
 }
 
 export function signUpPage(c: Context<AppEnv>) {
-  const options = c.get("options");
   if (c.get("appSession")) return c.redirect("/account");
-  return renderPage(
-    c,
-    options.assets,
-    "Sign up",
-    CredentialsPage({ mode: "sign-up" }),
-  );
+  return renderPage(c, "Sign up", credentialsData({ mode: "sign-up" }));
 }
 
 export function signInPage(c: Context<AppEnv>) {
-  const options = c.get("options");
   if (c.get("appSession")) return c.redirect("/account");
   return renderPage(
     c,
-    options.assets,
     "Sign in",
-    CredentialsPage({
+    credentialsData({
       mode: "sign-in",
       success:
         c.req.query("verified") === "1" && !c.req.query("error")
@@ -93,34 +79,18 @@ export function signInPage(c: Context<AppEnv>) {
 }
 
 export function forgotPasswordPage(c: Context<AppEnv>) {
-  return renderPage(
-    c,
-    c.get("options").assets,
-    "Forgot password",
-    ForgotPasswordPage(),
-  );
+  return renderPage(c, "Forgot password", emailFormData());
 }
 
 export function verifyEmailPage(c: Context<AppEnv>) {
-  return renderPage(
-    c,
-    c.get("options").assets,
-    "Verify email",
-    VerifyEmailPage(),
-  );
+  return renderPage(c, "Verify email", emailFormData());
 }
 
 export async function requestVerification(c: Context<AppEnv>) {
   const options = c.get("options");
   const form = await readEmail(c);
   if (form.error) {
-    return renderPage(
-      c,
-      options.assets,
-      "Verify email",
-      VerifyEmailPage(form),
-      400,
-    );
+    return renderPage(c, "Verify email", emailFormData(form), 400);
   }
   const limited = await enforceAuthRateLimit(
     c,
@@ -134,23 +104,16 @@ export async function requestVerification(c: Context<AppEnv>) {
     headers: c.req.raw.headers,
     asResponse: true,
   });
-  return renderPage(
-    c,
-    options.assets,
-    "Check your email",
-    VerifyEmailPage({ sent: true }),
-  );
+  return renderPage(c, "Check your email", emailFormData({ sent: true }));
 }
 
 export function resetPasswordPage(c: Context<AppEnv>) {
-  const options = c.get("options");
   const token = c.req.query("token") ?? "";
   const invalid = c.req.query("error") === "INVALID_TOKEN" || !token;
   return renderPage(
     c,
-    options.assets,
     "Reset password",
-    ResetPasswordPage({
+    resetData({
       token,
       error: invalid
         ? "This password reset link is invalid or has expired."
@@ -166,9 +129,8 @@ export async function signUp(c: Context<AppEnv>) {
   if (form.error) {
     return renderPage(
       c,
-      options.assets,
       "Sign up",
-      CredentialsPage({
+      credentialsData({
         mode: "sign-up",
         error: form.error,
         email: form.email,
@@ -189,7 +151,7 @@ export async function signUp(c: Context<AppEnv>) {
     headers: c.req.raw.headers,
     asResponse: true,
   });
-  return authResult(c, response, options.assets, "sign-up", form.email);
+  return authResult(c, response, "sign-up", form.email);
 }
 
 export async function signIn(c: Context<AppEnv>) {
@@ -198,9 +160,8 @@ export async function signIn(c: Context<AppEnv>) {
   if (form.error) {
     return renderPage(
       c,
-      options.assets,
       "Sign in",
-      CredentialsPage({
+      credentialsData({
         mode: "sign-in",
         error: form.error,
         email: form.email,
@@ -220,7 +181,7 @@ export async function signIn(c: Context<AppEnv>) {
     headers: c.req.raw.headers,
     asResponse: true,
   });
-  return authResult(c, response, options.assets, "sign-in", form.email);
+  return authResult(c, response, "sign-in", form.email);
 }
 
 export async function forgotPassword(c: Context<AppEnv>) {
@@ -229,9 +190,8 @@ export async function forgotPassword(c: Context<AppEnv>) {
   if (form.error) {
     return renderPage(
       c,
-      options.assets,
       "Forgot password",
-      ForgotPasswordPage({ email: form.email, error: form.error }),
+      emailFormData({ email: form.email, error: form.error }),
       400,
     );
   }
@@ -247,12 +207,7 @@ export async function forgotPassword(c: Context<AppEnv>) {
     body: { email: form.email, redirectTo: "/reset-password" },
     headers: c.req.raw.headers,
   });
-  return renderPage(
-    c,
-    options.assets,
-    "Check your email",
-    ForgotPasswordPage({ sent: true }),
-  );
+  return renderPage(c, "Check your email", emailFormData({ sent: true }));
 }
 
 export async function resetPassword(c: Context<AppEnv>) {
@@ -261,9 +216,8 @@ export async function resetPassword(c: Context<AppEnv>) {
   if (form.error) {
     return renderPage(
       c,
-      options.assets,
       "Reset password",
-      ResetPasswordPage({ token: form.token, error: form.error }),
+      resetData({ token: form.token, error: form.error }),
       400,
     );
   }
@@ -275,9 +229,8 @@ export async function resetPassword(c: Context<AppEnv>) {
   });
   return renderPage(
     c,
-    options.assets,
     "Reset password",
-    ResetPasswordPage({
+    resetData({
       token: response.ok ? "" : form.token,
       success: response.ok,
       error: response.ok
@@ -289,14 +242,12 @@ export async function resetPassword(c: Context<AppEnv>) {
 }
 
 export function accountPage(c: Context<AppEnv>) {
-  const options = c.get("options");
   const current = c.get("appSession");
   if (!current) return c.redirect("/sign-in");
   return renderPage(
     c,
-    options.assets,
     "Account",
-    AccountPage(current.user, {
+    accountData(current.user, {
       success: c.req.query("passwordChanged") === "1",
     }),
   );
@@ -318,9 +269,8 @@ export async function changePassword(c: Context<AppEnv>) {
   if (form.error) {
     return renderPage(
       c,
-      options.assets,
       "Account",
-      AccountPage(current.user, { error: form.error }),
+      accountData(current.user, { error: form.error }),
       400,
     );
   }
@@ -336,9 +286,8 @@ export async function changePassword(c: Context<AppEnv>) {
   if (!response.ok) {
     return renderPage(
       c,
-      options.assets,
       "Account",
-      AccountPage(current.user, {
+      accountData(current.user, {
         error:
           "The password could not be changed. Check your current password and try again.",
       }),
@@ -460,7 +409,6 @@ async function readChangePassword(c: Context) {
 async function authResult(
   c: Context<AppEnv>,
   response: Response,
-  assets: PageAssetPaths,
   mode: "sign-in" | "sign-up",
   email: string,
 ) {
@@ -468,9 +416,8 @@ async function authResult(
     if (mode === "sign-up") {
       return renderPage(
         c,
-        assets,
         "Check your email",
-        VerifyEmailPage({ sent: true, email }),
+        credentialsData({ mode, sent: true, email }),
       );
     }
     const headers = new Headers(response.headers);
@@ -479,13 +426,61 @@ async function authResult(
   }
   return renderPage(
     c,
-    assets,
     mode === "sign-up" ? "Sign up" : "Sign in",
-    CredentialsPage({
+    credentialsData({
       mode,
       email,
       error: "The credentials could not be accepted.",
     }),
     400,
   );
+}
+
+function credentialsData(options: {
+  mode: "sign-in" | "sign-up";
+  email?: string;
+  error?: string;
+  success?: string;
+  sent?: boolean;
+}) {
+  return {
+    mode: options.mode,
+    email: options.email ?? "",
+    error: options.error ?? "",
+    success: options.success ?? "",
+    sent: options.sent ?? false,
+  };
+}
+
+function emailFormData(
+  options: { email?: string; error?: string; sent?: boolean } = {},
+) {
+  return {
+    email: options.email ?? "",
+    error: options.error ?? "",
+    sent: options.sent ?? false,
+  };
+}
+
+function resetData(options: {
+  token: string;
+  error?: string;
+  success?: boolean;
+}) {
+  return {
+    token: options.token,
+    error: options.error ?? "",
+    success: options.success ?? false,
+  };
+}
+
+function accountData(
+  user: { name: string; email: string },
+  options: { error?: string; success?: boolean } = {},
+) {
+  return {
+    user: { name: user.name, email: user.email },
+    error: options.error ?? "",
+    success: options.success ?? false,
+  };
 }
