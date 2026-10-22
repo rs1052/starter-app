@@ -280,3 +280,35 @@ and build with its original configuration. For a deployed code-only rollback,
 select the previous Cloudflare Worker version and check health/account flows.
 No schema downgrade is needed because this migration changes no schema or SQL.
 Review actual deployment IDs and configuration before any remote command.
+
+## Follow-up: local cold-start regression
+
+After the initial PR, the user reported that plain development startup failed
+with the existing blank `EMAIL_FROM`, alongside a missing optimized-dependency
+chunk during reload. The initial verification had supplied a sender override,
+so it did not cover that local setup. The shell also still used unsupported
+Node 22.23.1.
+
+The fix is limited to Vite configuration and the browser fixture:
+
+- Development supplies a safe simulated sender only when the local sender is
+  missing or blank. Preview/build do not supply this default; production schema
+  and runtime validation are unchanged. Local environment files are not edited.
+- Worker dependency scanning starts from native routes and middleware, exposing
+  their static imports before serving requests instead of discovering them in
+  successive reloads through Void's lazy generated entry.
+- Unsupported Node versions fail with a clear message before starting Vite.
+- Browser flows now intentionally run with a blank sender to cover this case.
+
+Isolated Node 24.21.0 cold starts passed with both absent and blank senders, with
+repeated public route and resource requests and no optimizer reload errors.
+Before the scan configuration change, the isolated startup showed successive
+dependency optimization/reload waves; the user's exact intermittent missing-chunk
+exception was not reproduced. Afterward, startup required no discovery reloads.
+Node 22 rejection was also checked. Logs are under
+`/tmp/opencode/void-assessment/cold-*.log`.
+
+Focused ESLint, type checking, all 20 runtime-configuration tests (including
+production sender requirements), and all five browser flows with a blank sender
+passed. The browser preparation also built the production Worker successfully.
+Independent review of the startup fix passed with no blocking findings.

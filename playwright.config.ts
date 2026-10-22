@@ -17,7 +17,7 @@ export default defineConfig({
       BETTER_AUTH_SECRET: "browser-test-secret-at-least-32-characters",
       BETTER_AUTH_URL: "http://127.0.0.1:4173",
       TRUSTED_ORIGINS: "http://127.0.0.1:4173",
-      EMAIL_FROM: "Browser Test <no-reply@example.test>",
+      EMAIL_FROM: "",
     },
     url: "http://127.0.0.1:4173/health",
     reuseExistingServer: false,

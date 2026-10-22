@@ -12,6 +12,8 @@ Void owns routing, development, and Worker builds. Wrangler deploys the generate
 
 Local development does not require Docker, a database server, or a Cloudflare account.
 
+The Vite configuration rejects unsupported Node versions before starting the server. If your shell still uses Node 22, switch to Node >=24.21.0. To try development without changing your system Node installation, run `npm exec --yes --package=node@24.21.0 -- sh -c 'pnpm dev'` after setup.
+
 ## Local setup
 
 ```sh
@@ -29,7 +31,7 @@ Replace `BETTER_AUTH_SECRET` in `.env` with at least 32 random characters. Gener
 node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 ```
 
-`BETTER_AUTH_URL` and every `TRUSTED_ORIGINS` entry must be an HTTP(S) origin without a path, query, credentials, or fragment. Production requires explicit HTTPS origins, except for localhost previews. Keep `EMAIL_FROM` set to the local example sender. Cloudflare's email binding simulates delivery locally, without an API key or real email delivery.
+`BETTER_AUTH_URL` and every `TRUSTED_ORIGINS` entry must be an HTTP(S) origin without a path, query, credentials, or fragment. Production requires explicit HTTPS origins, except for localhost previews. During `pnpm dev`, a missing or blank `EMAIL_FROM` uses `Local <no-reply@example.test>` for simulated email. Preview and production still require an explicit sender. Cloudflare's email binding simulates delivery locally, without an API key or real email delivery.
 
 Build the Worker, apply existing migrations to local D1, and start Void:
 
