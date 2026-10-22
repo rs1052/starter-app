@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import { every } from "hono/combine";
 import type { App, AppEnv, AppOptions } from "../app-types.js";
 import { checkAuthRateLimit } from "../auth/rate-limit.js";
 import { renderPage } from "../http/page.js";
@@ -10,321 +11,358 @@ import { ResetPasswordPage } from "../views/pages/auth/reset-password.js";
 import { VerifyEmailPage } from "../views/pages/auth/verify-email.js";
 import type { PageAssetPaths } from "../views/layouts/app.js";
 
-export function registerAuthRoutes(app: App, options: AppOptions) {
-  app.use("/api/auth/*", boundedBody);
-  app.use("/api/auth/*", async (c, next) => {
-    const path = c.req.path.replace(/\/+$/, "");
-    if (c.req.method === "POST" && path !== "/api/auth/sign-out") {
-      const limited = await enforceAuthRateLimit(c, options, path);
-      if (limited) return limited;
-    }
-    await next();
-  });
-  for (const path of [
-    "/sign-up",
-    "/sign-in",
-    "/sign-out",
-    "/forgot-password",
-    "/reset-password",
-    "/verify-email",
-    "/account/password",
-  ]) {
-    app.use(path, boundedBody);
-    app.use(path, sameOrigin);
-  }
+export function registerAuthRoutes(app: App) {
+  app.use("*", authRequestSecurity);
+  app.get("/sign-up", signUpPage);
+  app.get("/sign-in", signInPage);
+  app.get("/forgot-password", forgotPasswordPage);
+  app.get("/verify-email", verifyEmailPage);
+  app.post("/verify-email", requestVerification);
+  app.get("/reset-password", resetPasswordPage);
+  app.post("/sign-up", signUp);
+  app.post("/sign-in", signIn);
+  app.post("/forgot-password", forgotPassword);
+  app.post("/reset-password", resetPassword);
+  app.get("/account", accountPage);
+  app.post("/account/password", changePassword);
+  app.post("/sign-out", signOut);
+  app.on(["GET", "POST"], "/api/auth/*", authApi);
+}
 
-  app.get("/sign-up", (c) => {
-    if (c.get("session")) return c.redirect("/account");
+export async function authRequestSecurity(
+  c: Context<AppEnv>,
+  next: () => Promise<void>,
+) {
+  if (c.req.path.startsWith("/api/auth/")) {
+    return every(boundedBody, limitAuthApi)(c, next);
+  }
+  if (
+    [
+      "/sign-up",
+      "/sign-in",
+      "/sign-out",
+      "/forgot-password",
+      "/reset-password",
+      "/verify-email",
+      "/account/password",
+    ].includes(c.req.path)
+  ) {
+    return every(boundedBody, sameOrigin)(c, next);
+  }
+  await next();
+}
+
+async function limitAuthApi(c: Context<AppEnv>, next: () => Promise<void>) {
+  const path = c.req.path.replace(/\/+$/, "");
+  if (c.req.method === "POST" && path !== "/api/auth/sign-out") {
+    const limited = await enforceAuthRateLimit(c, c.get("options"), path);
+    if (limited) return limited;
+  }
+  await next();
+}
+
+export function signUpPage(c: Context<AppEnv>) {
+  const options = c.get("options");
+  if (c.get("appSession")) return c.redirect("/account");
+  return renderPage(
+    c,
+    options.assets,
+    "Sign up",
+    CredentialsPage({ mode: "sign-up" }),
+  );
+}
+
+export function signInPage(c: Context<AppEnv>) {
+  const options = c.get("options");
+  if (c.get("appSession")) return c.redirect("/account");
+  return renderPage(
+    c,
+    options.assets,
+    "Sign in",
+    CredentialsPage({
+      mode: "sign-in",
+      success:
+        c.req.query("verified") === "1" && !c.req.query("error")
+          ? "Your email is verified. You can now sign in."
+          : undefined,
+      error: c.req.query("error")
+        ? "This verification link is invalid or has expired. Request a new link."
+        : undefined,
+    }),
+  );
+}
+
+export function forgotPasswordPage(c: Context<AppEnv>) {
+  return renderPage(
+    c,
+    c.get("options").assets,
+    "Forgot password",
+    ForgotPasswordPage(),
+  );
+}
+
+export function verifyEmailPage(c: Context<AppEnv>) {
+  return renderPage(
+    c,
+    c.get("options").assets,
+    "Verify email",
+    VerifyEmailPage(),
+  );
+}
+
+export async function requestVerification(c: Context<AppEnv>) {
+  const options = c.get("options");
+  const form = await readEmail(c);
+  if (form.error) {
+    return renderPage(
+      c,
+      options.assets,
+      "Verify email",
+      VerifyEmailPage(form),
+      400,
+    );
+  }
+  const limited = await enforceAuthRateLimit(
+    c,
+    options,
+    "verify-email",
+    form.email,
+  );
+  if (limited) return limited;
+  await options.auth.api.sendVerificationEmail({
+    body: { email: form.email, callbackURL: "/sign-in?verified=1" },
+    headers: c.req.raw.headers,
+    asResponse: true,
+  });
+  return renderPage(
+    c,
+    options.assets,
+    "Check your email",
+    VerifyEmailPage({ sent: true }),
+  );
+}
+
+export function resetPasswordPage(c: Context<AppEnv>) {
+  const options = c.get("options");
+  const token = c.req.query("token") ?? "";
+  const invalid = c.req.query("error") === "INVALID_TOKEN" || !token;
+  return renderPage(
+    c,
+    options.assets,
+    "Reset password",
+    ResetPasswordPage({
+      token,
+      error: invalid
+        ? "This password reset link is invalid or has expired."
+        : undefined,
+    }),
+    invalid ? 400 : 200,
+  );
+}
+
+export async function signUp(c: Context<AppEnv>) {
+  const options = c.get("options");
+  const form = await readCredentials(c, true);
+  if (form.error) {
     return renderPage(
       c,
       options.assets,
       "Sign up",
-      CredentialsPage({ mode: "sign-up" }),
+      CredentialsPage({
+        mode: "sign-up",
+        error: form.error,
+        email: form.email,
+      }),
+      400,
     );
-  });
+  }
+  const limited = await enforceAuthRateLimit(c, options, "sign-up", form.email);
+  if (limited) return limited;
 
-  app.get("/sign-in", (c) => {
-    if (c.get("session")) return c.redirect("/account");
+  const response = await options.auth.api.signUpEmail({
+    body: {
+      email: form.email,
+      name: form.name,
+      password: form.password,
+      callbackURL: "/sign-in?verified=1",
+    },
+    headers: c.req.raw.headers,
+    asResponse: true,
+  });
+  return authResult(c, response, options.assets, "sign-up", form.email);
+}
+
+export async function signIn(c: Context<AppEnv>) {
+  const options = c.get("options");
+  const form = await readCredentials(c, false);
+  if (form.error) {
     return renderPage(
       c,
       options.assets,
       "Sign in",
       CredentialsPage({
         mode: "sign-in",
-        success:
-          c.req.query("verified") === "1" && !c.req.query("error")
-            ? "Your email is verified. You can now sign in."
-            : undefined,
-        error: c.req.query("error")
-          ? "This verification link is invalid or has expired. Request a new link."
-          : undefined,
+        error: form.error,
+        email: form.email,
       }),
+      400,
     );
+  }
+  const limited = await enforceAuthRateLimit(c, options, "sign-in", form.email);
+  if (limited) return limited;
+
+  const response = await options.auth.api.signInEmail({
+    body: {
+      email: form.email,
+      password: form.password,
+      callbackURL: "/sign-in?verified=1",
+    },
+    headers: c.req.raw.headers,
+    asResponse: true,
   });
+  return authResult(c, response, options.assets, "sign-in", form.email);
+}
 
-  app.get("/forgot-password", (c) =>
-    renderPage(c, options.assets, "Forgot password", ForgotPasswordPage()),
-  );
-
-  app.get("/verify-email", (c) =>
-    renderPage(c, options.assets, "Verify email", VerifyEmailPage()),
-  );
-
-  app.post("/verify-email", async (c) => {
-    const form = await readEmail(c);
-    if (form.error) {
-      return renderPage(
-        c,
-        options.assets,
-        "Verify email",
-        VerifyEmailPage(form),
-        400,
-      );
-    }
-    const limited = await enforceAuthRateLimit(
-      c,
-      options,
-      "verify-email",
-      form.email,
-    );
-    if (limited) return limited;
-    await options.auth.api.sendVerificationEmail({
-      body: { email: form.email, callbackURL: "/sign-in?verified=1" },
-      headers: c.req.raw.headers,
-      asResponse: true,
-    });
+export async function forgotPassword(c: Context<AppEnv>) {
+  const options = c.get("options");
+  const form = await readEmail(c);
+  if (form.error) {
     return renderPage(
       c,
       options.assets,
-      "Check your email",
-      VerifyEmailPage({ sent: true }),
+      "Forgot password",
+      ForgotPasswordPage({ email: form.email, error: form.error }),
+      400,
     );
-  });
+  }
+  const limited = await enforceAuthRateLimit(
+    c,
+    options,
+    "forgot-password",
+    form.email,
+  );
+  if (limited) return limited;
 
-  app.get("/reset-password", (c) => {
-    const token = c.req.query("token") ?? "";
-    const invalid = c.req.query("error") === "INVALID_TOKEN" || !token;
+  await options.auth.api.requestPasswordReset({
+    body: { email: form.email, redirectTo: "/reset-password" },
+    headers: c.req.raw.headers,
+  });
+  return renderPage(
+    c,
+    options.assets,
+    "Check your email",
+    ForgotPasswordPage({ sent: true }),
+  );
+}
+
+export async function resetPassword(c: Context<AppEnv>) {
+  const options = c.get("options");
+  const form = await readResetPassword(c);
+  if (form.error) {
     return renderPage(
       c,
       options.assets,
       "Reset password",
-      ResetPasswordPage({
-        token,
-        error: invalid
-          ? "This password reset link is invalid or has expired."
-          : undefined,
-      }),
-      invalid ? 400 : 200,
+      ResetPasswordPage({ token: form.token, error: form.error }),
+      400,
     );
+  }
+
+  const response = await options.auth.api.resetPassword({
+    body: { newPassword: form.password, token: form.token },
+    headers: c.req.raw.headers,
+    asResponse: true,
   });
+  return renderPage(
+    c,
+    options.assets,
+    "Reset password",
+    ResetPasswordPage({
+      token: response.ok ? "" : form.token,
+      success: response.ok,
+      error: response.ok
+        ? undefined
+        : "This password reset link is invalid or has expired.",
+    }),
+    response.ok ? 200 : 400,
+  );
+}
 
-  app.post("/sign-up", async (c) => {
-    const form = await readCredentials(c, true);
-    if (form.error) {
-      return renderPage(
-        c,
-        options.assets,
-        "Sign up",
-        CredentialsPage({
-          mode: "sign-up",
-          error: form.error,
-          email: form.email,
-        }),
-        400,
-      );
-    }
-    const limited = await enforceAuthRateLimit(
-      c,
-      options,
-      "sign-up",
-      form.email,
-    );
-    if (limited) return limited;
+export function accountPage(c: Context<AppEnv>) {
+  const options = c.get("options");
+  const current = c.get("appSession");
+  if (!current) return c.redirect("/sign-in");
+  return renderPage(
+    c,
+    options.assets,
+    "Account",
+    AccountPage(current.user, {
+      success: c.req.query("passwordChanged") === "1",
+    }),
+  );
+}
 
-    const response = await options.auth.api.signUpEmail({
-      body: {
-        email: form.email,
-        name: form.name,
-        password: form.password,
-        callbackURL: "/sign-in?verified=1",
-      },
-      headers: c.req.raw.headers,
-      asResponse: true,
-    });
-    return authResult(c, response, options.assets, "sign-up", form.email);
-  });
+export async function changePassword(c: Context<AppEnv>) {
+  const options = c.get("options");
+  const current = c.get("appSession");
+  if (!current) return c.redirect("/sign-in", 303);
+  const limited = await enforceAuthRateLimit(
+    c,
+    options,
+    "change-password",
+    current.user.email,
+  );
+  if (limited) return limited;
 
-  app.post("/sign-in", async (c) => {
-    const form = await readCredentials(c, false);
-    if (form.error) {
-      return renderPage(
-        c,
-        options.assets,
-        "Sign in",
-        CredentialsPage({
-          mode: "sign-in",
-          error: form.error,
-          email: form.email,
-        }),
-        400,
-      );
-    }
-    const limited = await enforceAuthRateLimit(
-      c,
-      options,
-      "sign-in",
-      form.email,
-    );
-    if (limited) return limited;
-
-    const response = await options.auth.api.signInEmail({
-      body: {
-        email: form.email,
-        password: form.password,
-        callbackURL: "/sign-in?verified=1",
-      },
-      headers: c.req.raw.headers,
-      asResponse: true,
-    });
-    return authResult(c, response, options.assets, "sign-in", form.email);
-  });
-
-  app.post("/forgot-password", async (c) => {
-    const form = await readEmail(c);
-    if (form.error) {
-      return renderPage(
-        c,
-        options.assets,
-        "Forgot password",
-        ForgotPasswordPage({ email: form.email, error: form.error }),
-        400,
-      );
-    }
-    const limited = await enforceAuthRateLimit(
-      c,
-      options,
-      "forgot-password",
-      form.email,
-    );
-    if (limited) return limited;
-
-    await options.auth.api.requestPasswordReset({
-      body: { email: form.email, redirectTo: "/reset-password" },
-      headers: c.req.raw.headers,
-    });
+  const form = await readChangePassword(c);
+  if (form.error) {
     return renderPage(
       c,
       options.assets,
-      "Check your email",
-      ForgotPasswordPage({ sent: true }),
+      "Account",
+      AccountPage(current.user, { error: form.error }),
+      400,
     );
+  }
+  const response = await options.auth.api.changePassword({
+    body: {
+      currentPassword: form.currentPassword,
+      newPassword: form.newPassword,
+      revokeOtherSessions: true,
+    },
+    headers: c.req.raw.headers,
+    asResponse: true,
   });
-
-  app.post("/reset-password", async (c) => {
-    const form = await readResetPassword(c);
-    if (form.error) {
-      return renderPage(
-        c,
-        options.assets,
-        "Reset password",
-        ResetPasswordPage({ token: form.token, error: form.error }),
-        400,
-      );
-    }
-
-    const response = await options.auth.api.resetPassword({
-      body: { newPassword: form.password, token: form.token },
-      headers: c.req.raw.headers,
-      asResponse: true,
-    });
-    return renderPage(
-      c,
-      options.assets,
-      "Reset password",
-      ResetPasswordPage({
-        token: response.ok ? "" : form.token,
-        success: response.ok,
-        error: response.ok
-          ? undefined
-          : "This password reset link is invalid or has expired.",
-      }),
-      response.ok ? 200 : 400,
-    );
-  });
-
-  app.get("/account", (c) => {
-    const current = c.get("session");
-    if (!current) return c.redirect("/sign-in");
+  if (!response.ok) {
     return renderPage(
       c,
       options.assets,
       "Account",
       AccountPage(current.user, {
-        success: c.req.query("passwordChanged") === "1",
+        error:
+          "The password could not be changed. Check your current password and try again.",
       }),
+      400,
     );
+  }
+  const headers = new Headers(response.headers);
+  headers.set("location", "/account?passwordChanged=1");
+  return new Response(null, { status: 303, headers });
+}
+
+export async function signOut(c: Context<AppEnv>) {
+  const options = c.get("options");
+  const response = await options.auth.api.signOut({
+    headers: c.req.raw.headers,
+    asResponse: true,
   });
+  const headers = new Headers(response.headers);
+  headers.set("location", "/");
+  return new Response(null, { status: 303, headers });
+}
 
-  app.post("/account/password", async (c) => {
-    const current = c.get("session");
-    if (!current) return c.redirect("/sign-in", 303);
-    const limited = await enforceAuthRateLimit(
-      c,
-      options,
-      "change-password",
-      current.user.email,
-    );
-    if (limited) return limited;
-
-    const form = await readChangePassword(c);
-    if (form.error) {
-      return renderPage(
-        c,
-        options.assets,
-        "Account",
-        AccountPage(current.user, { error: form.error }),
-        400,
-      );
-    }
-    const response = await options.auth.api.changePassword({
-      body: {
-        currentPassword: form.currentPassword,
-        newPassword: form.newPassword,
-        revokeOtherSessions: true,
-      },
-      headers: c.req.raw.headers,
-      asResponse: true,
-    });
-    if (!response.ok) {
-      return renderPage(
-        c,
-        options.assets,
-        "Account",
-        AccountPage(current.user, {
-          error:
-            "The password could not be changed. Check your current password and try again.",
-        }),
-        400,
-      );
-    }
-    const headers = new Headers(response.headers);
-    headers.set("location", "/account?passwordChanged=1");
-    return new Response(null, { status: 303, headers });
-  });
-
-  app.post("/sign-out", async (c) => {
-    const response = await options.auth.api.signOut({
-      headers: c.req.raw.headers,
-      asResponse: true,
-    });
-    const headers = new Headers(response.headers);
-    headers.set("location", "/");
-    return new Response(null, { status: 303, headers });
-  });
-
-  app.on(["GET", "POST"], "/api/auth/*", (c) =>
-    options.auth.handler(c.req.raw),
-  );
+export function authApi(c: Context<AppEnv>) {
+  return c.get("options").auth.handler(c.req.raw);
 }
 
 async function enforceAuthRateLimit(

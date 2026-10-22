@@ -2,10 +2,12 @@ node_modules/
 dist/
 data/
 .wrangler/
+.void/
+.void-wrangler.jsonc
+void.lock.json
 .dev.vars
 .env
 .env.*
-!.env.example
 test-results/
 playwright-report/
 coverage/

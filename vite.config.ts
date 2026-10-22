@@ -1,51 +1,16 @@
-import { cloudflare } from "@cloudflare/vite-plugin";
-import devServer, { defaultOptions } from "@hono/vite-dev-server";
-import nodeAdapter from "@hono/vite-dev-server/node";
 import { defineConfig } from "vite";
+import { voidPlugin } from "void";
 
-export default defineConfig(({ command, mode, isPreview }) => {
-  if (command === "serve" && !isPreview) {
-    return {
-      plugins: [
-        devServer({
-          adapter: nodeAdapter(),
-          entry: "src/runtime/node.ts",
-          export: "app",
-          exclude: [...defaultOptions.exclude, /^\/resources\/(css|js)\//],
-        }),
-      ],
-    };
-  }
-
-  if (mode === "client") {
-    return {
-      build: {
-        copyPublicDir: true,
-        emptyOutDir: true,
-        outDir: "dist/client",
-        rollupOptions: {
-          input: "resources/js/app.ts",
-          output: {
-            assetFileNames: "assets/app.[ext]",
-            chunkFileNames: "assets/[name]-[hash].js",
-            entryFileNames: "assets/app.js",
-          },
-        },
-      },
-    };
-  }
-
-  return {
-    build: {
-      rollupOptions: {
-        input: "resources/js/app.ts",
-        output: {
-          assetFileNames: "assets/app.[ext]",
-          chunkFileNames: "assets/[name]-[hash].js",
-          entryFileNames: "assets/app.js",
-        },
+export default defineConfig({
+  plugins: [voidPlugin({ persistTo: process.env.LOCAL_D1_STATE ?? ".void" })],
+  build: {
+    rollupOptions: {
+      input: "resources/js/app.ts",
+      output: {
+        assetFileNames: "assets/app.[ext]",
+        chunkFileNames: "assets/[name]-[hash].js",
+        entryFileNames: "assets/app.js",
       },
     },
-    plugins: [cloudflare()],
-  };
+  },
 });

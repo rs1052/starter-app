@@ -6,12 +6,17 @@ import { registerErrorHandlers } from "./routes/errors.js";
 import { registerExampleRoutes } from "./routes/examples.js";
 import { registerHomeRoutes } from "./routes/home.js";
 
+// In-process test harness. Void's routes/ and middleware/ own the Worker runtime.
 export function createApp(options: AppOptions) {
   const app = new Hono<AppEnv>();
+  app.use("*", async (c, next) => {
+    c.set("options", options);
+    await next();
+  });
   registerApplicationMiddleware(app, options.auth);
-  registerHomeRoutes(app, options);
-  registerAuthRoutes(app, options);
-  registerExampleRoutes(app, options.assets);
+  registerHomeRoutes(app);
+  registerAuthRoutes(app);
+  registerExampleRoutes(app);
   registerErrorHandlers(app, options.assets);
   return app;
 }

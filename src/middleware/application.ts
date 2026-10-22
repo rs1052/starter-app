@@ -5,41 +5,45 @@ import type { Auth } from "../auth/create-auth.js";
 import type { Context } from "hono";
 
 export function registerApplicationMiddleware(app: App, auth: Auth) {
-  app.use("*", requestId());
-  app.use("*", async (c, next) => {
-    const started = performance.now();
-    await next();
-    logRequest(c, started);
-  });
-  app.use(
-    "*",
-    secureHeaders({
-      contentSecurityPolicy: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-        styleSrc: ["'self'"],
-        imgSrc: ["'self'", "data:"],
-        connectSrc: ["'self'"],
-        frameAncestors: ["'none'"],
-        baseUri: ["'none'"],
-        objectSrc: ["'none'"],
-        formAction: ["'self'"],
-      },
-      referrerPolicy: "strict-origin-when-cross-origin",
-    }),
-  );
+  app.use("*", requestId(), requestLog, securityHeaders, sessionLookup(auth));
+}
 
-  app.use("*", async (c, next) => {
+export async function requestLog(
+  c: Context<AppEnv>,
+  next: () => Promise<void>,
+) {
+  const started = performance.now();
+  await next();
+  logRequest(c, started);
+}
+
+export const securityHeaders = secureHeaders({
+  contentSecurityPolicy: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'"],
+    styleSrc: ["'self'"],
+    imgSrc: ["'self'", "data:"],
+    connectSrc: ["'self'"],
+    frameAncestors: ["'none'"],
+    baseUri: ["'none'"],
+    objectSrc: ["'none'"],
+    formAction: ["'self'"],
+  },
+  referrerPolicy: "strict-origin-when-cross-origin",
+});
+
+export function sessionLookup(auth: Auth) {
+  return async (c: Context<AppEnv>, next: () => Promise<void>) => {
     if (c.req.path === "/health" || c.req.path.startsWith("/api/auth/")) {
-      c.set("session", null);
+      c.set("appSession", null);
       return next();
     }
     const session = await auth.api.getSession({
       headers: c.req.raw.headers,
     });
-    c.set("session", session);
+    c.set("appSession", session);
     await next();
-  });
+  };
 }
 
 export function logRequest(
