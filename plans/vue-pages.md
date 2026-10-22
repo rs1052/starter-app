@@ -46,7 +46,7 @@ this migration must not deploy or modify remote resources.
 ## Final verification (2026-10-22)
 
 `pnpm verify` passed with Node 24.21.0: ESLint, Stylelint, markdownlint, Prettier,
-Vue typecheck, 44 unit tests, 7 browser tests, 8 accessibility tests, Fallow
+Vue typecheck, 44 unit tests, 8 browser tests, 8 accessibility tests, Fallow
 (0 dead code, 0 cycles, 0 complexity findings), and Worker smoke (build, local D1
 migrations, SSR, escaping, static assets, auth forms, and simulated email).
 
@@ -58,6 +58,8 @@ Verification-driven changes:
 - Browser tests use one Playwright worker because local D1 is a single SQLite
   file and parallel workers produced transient `SQLITE_BUSY` responses.
 - Generated Playwright reports are excluded from markdownlint.
+- Form fields restore text entered before hydration, with a browser regression
+  test that delays the client entry to cover the race.
 - The client entry keeps the stable `/assets/app.js` path while the external CSS
   entry is emitted separately as `/assets/app.css`.
 

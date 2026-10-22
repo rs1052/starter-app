@@ -1,5 +1,7 @@
 <script setup lang="ts">
-withDefaults(
+import { onBeforeMount, onMounted } from "vue";
+
+const props = withDefaults(
   defineProps<{
     autocomplete: string;
     label: string;
@@ -10,6 +12,21 @@ withDefaults(
   }>(),
   { type: "text", value: "" },
 );
+
+let inputBeforeHydration = "";
+
+onBeforeMount(() => {
+  const input = document.getElementById(props.name) as HTMLInputElement | null;
+  inputBeforeHydration = input?.value ?? "";
+});
+
+onMounted(() => {
+  const input = document.getElementById(props.name) as HTMLInputElement | null;
+  // Hydration can clear text entered before the client mounts.
+  if (input && inputBeforeHydration && input.value !== inputBeforeHydration) {
+    input.value = inputBeforeHydration;
+  }
+});
 </script>
 
 <template>

@@ -59,3 +59,31 @@ test("Vue SSR, hydration, navigation history, and form errors", async ({
   expect(invalid.headers()["cache-control"]).toBe("no-store");
   expect(errors).toEqual([]);
 });
+
+test("preserves input typed before hydration", async ({ page }) => {
+  await page.route(/void-pages-client/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    await route.continue();
+  });
+  await page.goto("/forgot-password");
+  expect(
+    await page.evaluate(() =>
+      Boolean(
+        (
+          document.getElementById("app") as
+            (HTMLElement & { __vue_app__?: unknown }) | null
+        )?.__vue_app__,
+      ),
+    ),
+  ).toBe(false);
+  await page.getByLabel("Email").fill("typed@example.com");
+  await page.waitForFunction(() =>
+    Boolean(
+      (
+        document.getElementById("app") as
+          (HTMLElement & { __vue_app__?: unknown }) | null
+      )?.__vue_app__,
+    ),
+  );
+  await expect(page.getByLabel("Email")).toHaveValue("typed@example.com");
+});
