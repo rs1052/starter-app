@@ -6,18 +6,18 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   use: {
     baseURL: "http://127.0.0.1:4173",
+    launchOptions: { executablePath: process.env.CHROMIUM_PATH },
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   webServer: {
     command: "pnpm dev --host 127.0.0.1 --port 4173 --strictPort",
     env: {
-      DATABASE_PATH: "data/test-browser.db",
+      LOCAL_D1_STATE: "data/browser-d1",
       BETTER_AUTH_SECRET: "browser-test-secret-at-least-32-characters",
       BETTER_AUTH_URL: "http://127.0.0.1:4173",
       TRUSTED_ORIGINS: "http://127.0.0.1:4173",
       EMAIL_FROM: "",
-      RESEND_API_KEY: "",
     },
     url: "http://127.0.0.1:4173/health",
     reuseExistingServer: false,

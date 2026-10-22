@@ -1,21 +1,26 @@
-# Hono dual-runtime starter
+# Void server-rendered starter
 
-A small server-rendered TypeScript starter that runs on Node with SQLite during local development and deploys to Cloudflare Workers with D1. The shared Hono application includes email/password authentication, a protected account page, HTMX and Alpine examples, security defaults, and automated accessibility checks.
+A small server-rendered TypeScript starter using native Void routes and middleware on Cloudflare Workers with D1, including local development. It retains Hono HTML views, Better Auth email/password authentication, a protected account page, HTMX and Alpine examples, security defaults, and automated accessibility checks. No UI framework is required.
+
+Void owns routing, development, and Worker builds. Wrangler deploys the generated Worker without applying migrations. Do not use `void deploy`, `void db`, or `void/auth` in this starter: Drizzle migrations and Better Auth remain application-owned.
 
 ## Requirements
 
-- Node.js 24 or newer
+- Node.js 24.21.0 or newer
 - The pnpm version pinned in `package.json` (`packageManager`)
 - Chromium for browser tests: `pnpm exec playwright install chromium`
 
 Local development does not require Docker, a database server, or a Cloudflare account.
+
+The Vite configuration rejects unsupported Node versions before starting the server. If your shell still uses Node 22, switch to Node >=24.21.0. To try development without changing your system Node installation, run `npm exec --yes --package=node@24.21.0 -- sh -c 'pnpm dev'` after setup.
 
 ## Local setup
 
 ```sh
 git config core.hooksPath .githooks
 pnpm install --frozen-lockfile
-node -e "require('node:fs').copyFileSync('.env.example', '.env')"
+pnpm prepare:types
+node -e "require('node:fs').copyFileSync('config/local.env.example', '.env')"
 ```
 
 The Git configuration enables this repository's committed hooks for this clone. The pre-commit hook blocks direct commits to `main`.
@@ -26,34 +31,33 @@ Replace `BETTER_AUTH_SECRET` in `.env` with at least 32 random characters. Gener
 node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 ```
 
-`BETTER_AUTH_URL` and every `TRUSTED_ORIGINS` entry must be an HTTP(S) origin without a path, query, credentials, or fragment. Production requires explicit HTTPS origins, except for localhost previews. Leave `EMAIL_FROM` and `RESEND_API_KEY` empty to print verification and password-reset messages in local development, or set both to send through Resend.
+`BETTER_AUTH_URL` and every `TRUSTED_ORIGINS` entry must be an HTTP(S) origin without a path, query, credentials, or fragment. Production requires explicit HTTPS origins, except for localhost previews. During `pnpm dev`, a missing or blank `EMAIL_FROM` uses `Local <no-reply@example.test>` for simulated email. Preview and production still require an explicit sender. Cloudflare's email binding simulates delivery locally, without an API key or real email delivery.
 
-Create the SQLite database and start the application:
+Build the Worker, apply existing migrations to local D1, and start Void:
 
 ```sh
 pnpm db:migrate
 pnpm dev
 ```
 
-Open <http://localhost:5173>. Vite runs the Hono Node entry and browser asset server as one process. Route and view edits trigger a page reload. CSS and `resources/js/app.ts` use Vite HMR. Authentication data persists in `data/app.db`, which is ignored by Git.
+Open <http://localhost:5173>. Void's Vite plugin runs the actual Worker and browser asset server as one process. CSS and `resources/js/app.ts` use Vite HMR. Local D1 persists in ignored `.void/` state. `pnpm db:migrate` builds first so Wrangler can read the generated binding configuration.
 
-Node is the development runtime only. Production builds and previews run the actual Cloudflare Worker with D1, not a separate Node server.
+The former Node/SQLite development server has been removed after verifying the replacement. Development and preview now use the same local Workers/D1 runtime. Existing `data/app.db` files are not deleted or imported into D1. `better-sqlite3` remains for disposable schema/auth tests and optional SQLite inspection, not an application runtime.
+
+Void supports only a single root `.env`, not `.dev.vars*` or `.env.*` files, including examples. The template therefore lives under `config/`. Existing clones must move any root legacy environment files outside the project and update their local settings. Never commit real values. `env.ts` declares the four application settings; runtime parsing still validates secrets, senders, and origins.
 
 ## Local Worker preview
 
-Worker preview uses local D1, not `data/app.db`. You do not need a Cloudflare account. Copy the preview settings, fill in `BETTER_AUTH_SECRET` with a newly generated secret, and apply local D1 migrations:
+Worker preview uses the same local D1 state as development. You do not need a Cloudflare account. Set `BETTER_AUTH_URL` and `TRUSTED_ORIGINS` in `.env` to exactly `http://127.0.0.1:4174`, then run:
 
 ```sh
-node -e "require('node:fs').copyFileSync('.dev.vars.example', '.dev.vars')"
-node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 pnpm db:migrate:d1:local
-pnpm build
 pnpm preview
 ```
 
-Open <http://127.0.0.1:4174>. Keep both origin settings in `.dev.vars` at exactly that origin. `.dev.vars` overrides the production defaults in `wrangler.jsonc`. `.env` configures Node development and does not replace Worker bindings. Local D1 persists in ignored `.wrangler/` state.
+Open <http://127.0.0.1:4174>. Restore both origin settings to `http://localhost:5173` before returning to `pnpm dev`. Preview serves Void's generated `dist/ssr` Worker and `dist/client` assets, not a Node server. Build output can contain ignored local secret files for preview. Do not publish build directories as public artifacts.
 
-The Worker requires `EMAIL_FROM` and the `EMAIL` binding even in preview, but no email API key. The binding simulates delivery locally: emails are not sent, and Wrangler logs the message details and paths to saved message content. Open the saved verification or password-reset message and follow its link to test the account lifecycle manually. Automated tests use disposable verification tokens generated by Better Auth; the Worker smoke test also checks simulated email delivery. Keep the email binding local (do not set `remote: true`) to avoid sending real emails during preview or tests.
+The Worker requires `EMAIL_FROM` and the `EMAIL` binding in development and preview, but no email API key. The binding simulates delivery locally: emails are not sent, and the runtime logs the message details and paths to saved message content. Open the saved verification or password-reset message and follow its link to test the account lifecycle manually. Automated tests use disposable verification tokens generated by Better Auth; the Worker smoke test also checks simulated email delivery. Keep the email binding local (do not set `remote: true`) to avoid sending real emails during development, preview, or tests.
 
 ## Database workflow
 
@@ -61,18 +65,21 @@ The Better Auth tables live in `src/db/schema.ts`. Drizzle migrations in `drizzl
 
 ```sh
 pnpm db:generate  # Generate a migration after a schema change
-pnpm db:migrate   # Apply pending migrations to DATABASE_PATH
-pnpm db:studio    # Inspect the configured local database
-pnpm db:reset     # Remove the configured local database and its sidecars
+pnpm db:migrate   # Build, then apply pending migrations to local D1
+pnpm db:migrate:sqlite # Optional SQLite schema check at DATABASE_PATH
+pnpm db:studio    # Optional SQLite inspection, not the local D1 database
+pnpm db:reset:sqlite # Remove only the optional SQLite file and its sidecars
 ```
 
-Run `pnpm db:migrate` after a reset. Set `DATABASE_PATH` to use another SQLite file. Tests always use disposable databases and never use `data/app.db`.
+Set `DATABASE_PATH` for the optional SQLite commands (default `data/app.db`). Tests always use disposable databases. Browser tests use `data/browser-d1`; Worker smoke tests use temporary local D1 state, compare the migrated auth tables and indexes with disposable SQLite, and remove their state afterward.
+
+Keep the existing `drizzle/` filenames and Wrangler's `d1_migrations` tracking table unchanged. Do not copy historical SQL to `db/migrations/`, run `void db`, or enable Void-managed auth. Void's conventional migration directory is intentionally absent. `pnpm deploy` uploads code only; remote migrations are a separate, reviewed command. Existing production migration history has not been queried or changed by this migration.
 
 Enable SQLite foreign keys explicitly on every connection, including scripts and tests. D1 uses the same foreign-key constraints. Rate limiting does not require a database table or migration.
 
 ### Better Auth upgrades
 
-Upgrade `better-auth` and `@better-auth/drizzle-adapter` together. Check the proposed version's schema requirements before deployment. Use a temporary config that imports `createAuth()`, not `src/runtime/node.ts`, which opens the development database and reads `.env` at import time.
+Upgrade `better-auth`, `@better-auth/core`, and `@better-auth/drizzle-adapter` together. The explicit core pin keeps the adapter's peer dependency aligned rather than resolving Void's newer auth version. Check the proposed version's schema requirements before deployment. Use a temporary config that imports `createAuth()` and a disposable SQLite database.
 
 Create `data/auth-schema-check.ts` (create `data/` first if needed):
 
@@ -125,7 +132,9 @@ The HTMX example has an ordinary form fallback, and the disclosure uses the CSP-
 
 ## Server-rendered views
 
-Routes own HTTP behavior and pass view data to route-level page functions under `src/views/pages/`. Pages compose reusable UI primitives from `src/views/components/` and render inside the document shell in `src/views/layouts/`. Pages may be grouped by product area, as the authentication pages are, while independently reusable primitives have their own named modules.
+Native method exports under `routes/` own the URL mapping. They call existing HTTP handlers in `src/routes/`, which pass view data to page functions under `src/views/pages/`. `middleware/01.application.ts` composes request IDs, logging, security headers, runtime dependencies, session lookup, and request protections. `src/http/handler.ts` wraps native handlers so application failures retain generic responses rather than Void's development error pages. `src/app.ts` is an in-process Hono test harness only.
+
+Pages compose reusable UI primitives from `src/views/components/` and render inside the document shell in `src/views/layouts/`. Existing HTML, branding, URLs, forms, and no-JavaScript behavior are retained. Pages may be grouped by product area, as the authentication pages are, while independently reusable primitives have their own named modules.
 
 Keep page-specific helpers private to their page. Add a feature partial only when markup is reused within that feature, and move markup into `components/` only when it is context-free and reusable across features. These `hono/html` functions serve the same role as layouts, views, and partials in template-engine-based server applications.
 
@@ -148,7 +157,9 @@ pnpm exec playwright install chromium
 pnpm verify
 ```
 
-`pnpm verify` runs ESLint, Stylelint, Markdownlint, Prettier check, TypeScript checking, Vitest, Playwright behavior tests, axe checks, Fallow, and finally `pnpm test:worker`. The Worker test runs `pnpm build && tsx scripts/smoke-worker.ts` to build client and Worker output and check the actual Worker with disposable local D1 and test-only configuration. Tests do not send real email.
+`pnpm verify` prepares Void types, then runs ESLint, Stylelint, Markdownlint, Prettier check, TypeScript checking, Vitest, Playwright behavior tests, axe checks, Fallow, and finally `pnpm test:worker`. Standalone type checking also runs `void prepare`. Browser preparation builds the Worker and applies migrations to disposable local D1. The Worker test builds Void output and checks the actual Worker with disposable local D1 and test-only configuration, including origin/body protections, headers, rate limiting, schema parity, and simulated email. Tests do not send real email. Set `CHROMIUM_PATH` to use an installed Chromium instead of Playwright's download.
+
+Void 1.2.0 requires Wrangler 4.151 or newer and the same Hono version for compatible context types. Exact pins and narrow release-age exceptions in `pnpm-workspace.yaml` cover the evaluated release and its new packages; they do not disable the release-age policy globally.
 
 GitHub Actions runs the same command for every push and pull request using Node 24, the pnpm version from `packageManager`, and Chromium. Dependabot groups weekly npm and GitHub Actions updates with a limit of two open version-update pull requests per ecosystem. GitHub's current support table lists pnpm only through v10, so check update logs for pnpm 11 compatibility and review lockfile changes manually. Dependency updates must pass verification before merging.
 
@@ -173,14 +184,14 @@ pnpm preview
 
 Create a repository with GitHub's **Use this template** action, then clone it. Follow Local setup, run `pnpm verify`, and use Local Worker preview to check the production runtime before configuring deployment.
 
-Before deployment, replace the package name in `package.json`, Worker name and D1 database name/ID in `wrangler.jsonc`, and database names in package scripts and deployment commands. Choose a rate-limit namespace ID unique within your Cloudflare account. Replace starter branding in views and this README, the production domain and trusted origins, and the email sender with your verified sender.
+Before deployment, replace the package name in `package.json` and Worker name and D1 database name/ID in `void.config.ts`. Choose a rate-limit namespace ID unique within your Cloudflare account. Replace starter branding in views and this README, and configure the production domain, trusted origins, and verified email sender as Worker secrets. Test first with a new staging Worker and disposable D1 database, not the production Worker.
 
 Replace the manifest's `name`, `short_name`, `description`, `theme_color`, and `background_color`, all starter icons in `public/icons/`, and the `theme-color` metadata in `src/views/layouts/app.ts`.
 
 Find committed placeholders and starter names:
 
 ```sh
-git grep -n -i -E "hono|starter|replace-with|no-reply|1001" -- package.json wrangler.jsonc README.md src public
+git grep -n -i -E "hono|starter|replace-with|no-reply|1001" -- package.json void.config.ts README.md src public
 ```
 
 Keep the template's example values generic. Put project-specific deployment values in your own repository and secrets only in ignored local files or Worker secrets. Keep `plans/` available for future work, but remove completed template plans.
@@ -195,19 +206,26 @@ These steps require a Cloudflare account and Wrangler authentication. Production
    pnpm wrangler d1 create hono-dual-runtime-starter
    ```
 
-2. Replace `replace-with-your-d1-database-id` in `wrangler.jsonc` with the returned ID. Set `BETTER_AUTH_URL` and `TRUSTED_ORIGINS` there to the exact HTTPS production origin. Set `EMAIL_FROM` to a sender on your onboarded Cloudflare Email Sending domain. Keep the configured `EMAIL` send binding. The `AUTH_RATE_LIMITER` namespace ID must be a positive integer unique within your Cloudflare account. Change the included `1001` if it is already in use.
+2. Replace `replace-with-your-d1-database-id` in `void.config.ts` with the returned ID. Keep the configured `EMAIL` send binding. The `AUTH_RATE_LIMITER` namespace ID must be a positive integer unique within your Cloudflare account. Change the included `1001` if it is already in use. Build to materialize the Wrangler configuration:
+
+   ```sh
+   pnpm build
+   ```
 
 3. Confirm the migrations against local D1, then apply them remotely:
 
    ```sh
    pnpm db:migrate:d1:local
-   pnpm wrangler d1 migrations apply hono-dual-runtime-starter --remote
+   pnpm wrangler d1 migrations apply DB --config dist/ssr/wrangler.json --remote
    ```
 
-4. Store the production authentication secret as a Worker secret. The native email binding does not need a Resend key or Cloudflare email API token:
+4. Store the production settings as Worker secrets. Void's environment schema forbids these server keys in plaintext `vars`, including the non-sensitive origin/sender settings. Set the URLs to the exact HTTPS production origin, `EMAIL_FROM` to an onboarded sender, and the auth secret to at least 32 random characters. Existing installations must review conversion of any same-named plaintext settings before rollout. The native email binding does not need a Resend key or Cloudflare email API token:
 
    ```sh
-   pnpm wrangler secret put BETTER_AUTH_SECRET
+   pnpm wrangler secret put BETTER_AUTH_SECRET --config dist/ssr/wrangler.json
+   pnpm wrangler secret put BETTER_AUTH_URL --config dist/ssr/wrangler.json
+   pnpm wrangler secret put TRUSTED_ORIGINS --config dist/ssr/wrangler.json
+   pnpm wrangler secret put EMAIL_FROM --config dist/ssr/wrangler.json
    ```
 
 5. Build and deploy:
@@ -216,25 +234,25 @@ These steps require a Cloudflare account and Wrangler authentication. Production
    pnpm deploy
    ```
 
-The Cloudflare Vite plugin emits the deployable Worker and stable `/assets/app.css` and `/assets/app.js` files. Wrangler uses the generated output configuration when deploying after the build.
+Void's Vite plugin emits `dist/ssr/wrangler.json`, the deployable Worker, and stable `/assets/app.css` and `/assets/app.js` files. The deploy script explicitly selects that configuration. It does not provision resources or apply migrations. Do not use `void init`, `void connect`, or `void deploy` against an existing production Worker for this workflow. `void.lock.json` is ignored because this starter does not use Void provisioning; reviewed resource IDs live in `void.config.ts`.
 
-Node development prints verification and password-reset messages to the terminal unless both `EMAIL_FROM` and `RESEND_API_KEY` are configured, in which case it sends through Resend's HTTP API. Worker production requires `EMAIL_FROM` and the native Cloudflare `EMAIL` binding, not `RESEND_API_KEY`. Auth email delivery runs in background tasks using the existing runtime scheduler, with generic failure logs that omit recipients and links. Resend HTTP requests time out after 10 seconds; the native binding has no application-level timeout or cancellation. Neither sender is retried automatically by the application. The shared application's provider-neutral `SendEmail` interface accepts `to`, `subject`, and `text`, so another provider can be substituted at the runtime boundary without changing authentication or email content.
+Development, preview, and production use `EMAIL_FROM` and the native Cloudflare `EMAIL` binding, not `RESEND_API_KEY`. Delivery is simulated locally. Auth email delivery runs through the Worker execution context in background tasks, with generic failure logs that omit recipients and links. The native binding has no application-level timeout, cancellation, or retries. The existing provider-neutral `SendEmail` interface and optional Resend adapter remain available, but Resend is not selected by the runtime.
 
 After deployment, confirm receipt of a verification email, verify the account, and confirm receipt of a password-reset email and completion of the reset flow. Local simulated delivery does not verify production credentials, domain setup, or deliverability.
 
 Forms and `/api/auth/*` enforce a 64 KiB request-body limit. Forms require a matching Origin header. Better Auth protects its HTTP API with its own origin and CSRF checks. CSP restricts `base-uri`, `object-src`, and `form-action` as well as script and style sources. Do not disable Better Auth's checks.
 
-Application-owned sign-in, sign-up, forgot-password, resend-verification, and change-password forms use action-specific email identity and IP rate-limit buckets. Password changes use the authenticated user's email, not form input. Auth API POST requests, except sign-out, use IP and pathname buckets. Cloudflare trusts only `CF-Connecting-IP`. Local Worker requests without that header share a fallback bucket. Node uses a shared development identity and a process-memory limiter, not client-supplied forwarding headers. Cloudflare uses the configured edge Rate Limiting binding (five attempts per bucket per minute). Better Auth's default in-memory API limiter remains a secondary defense within each Worker isolate. Cloudflare limits are approximate and per location, not global quotas. Edge rejections include a conservative `Retry-After: 60`.
+Application-owned sign-in, sign-up, forgot-password, resend-verification, and change-password forms use action-specific email identity and IP rate-limit buckets. Password changes use the authenticated user's email, not form input. Auth API POST requests, except sign-out, use IP and pathname buckets. Cloudflare trusts only `CF-Connecting-IP`. Local Worker requests without that header share a fallback bucket. Cloudflare uses the configured edge Rate Limiting binding (five attempts per bucket per minute), including local simulation. Better Auth's default in-memory API limiter remains a secondary defense within each Worker isolate. Cloudflare limits are approximate and per location, not global quotas. Edge rejections include a conservative `Retry-After: 60`.
 
-Application responses include `X-Request-Id`. Public static assets are served directly by Cloudflare and bypass application middleware. Request completions and uncaught errors produce structured JSON logs with the same ID, without request bodies, headers, email addresses, or query values. Workers Logs are enabled explicitly in `wrangler.jsonc` and are available through the Cloudflare dashboard or `pnpm wrangler tail`.
+Application responses include `X-Request-Id`. Public static assets bypass application middleware. Request completions and uncaught errors produce structured JSON logs with the same ID, without request bodies, headers, email addresses, or query values. Workers Logs are enabled explicitly in `void.config.ts` and are available through the Cloudflare dashboard or `pnpm wrangler tail --config dist/ssr/wrangler.json`. Void reserves `/__void` for internal tooling. Its public `/__void/ready` endpoint returns runtime readiness without application headers or logs; it does not check D1. Use `/health` for application/database readiness. No Void-managed authentication or schema-writing migration routes are enabled by this application.
 
 ### Production checklist
 
-Before deployment, run `pnpm verify`. For schema changes, review generated migrations and test them against local SQLite (`pnpm db:migrate`) and local D1 (`pnpm db:migrate:d1:local`). Prefer backward-compatible changes so both the old and new application can use the schema during rollout. `pnpm deploy` builds and deploys code only. It does not run production migrations.
+Before deployment, run `pnpm verify`. For schema changes, review generated migrations and test them against disposable SQLite (`pnpm test`) and local D1 (`pnpm db:migrate:d1:local`). Prefer backward-compatible changes so both the old and new application can use the schema during rollout. `pnpm deploy` builds and deploys code only. It does not run production migrations. Review `pnpm wrangler deploy --config dist/ssr/wrangler.json --dry-run` before the first staging deployment.
 
 For backward-compatible schema changes:
 
-1. Apply the reviewed remote migration with `pnpm wrangler d1 migrations apply hono-dual-runtime-starter --remote`.
+1. Build, then apply the reviewed remote migration with `pnpm wrangler d1 migrations apply DB --config dist/ssr/wrangler.json --remote`.
 2. Deploy compatible application code with `pnpm deploy`. For incompatible changes, plan a staged rollout instead of applying this order blindly. Remove obsolete columns only after the code no longer uses them.
 3. Check `/health` on the production origin.
 4. Smoke-test the changed critical path.
@@ -278,9 +296,13 @@ Use [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/
 
 Use [Workers Issues](https://developers.cloudflare.com/workers/observability/issues/) if enabled and available to group production failures. It is optional and not enabled by this starter. `/health` checks application and database readiness, not email delivery or every user flow. Keep post-deployment smoke tests focused on the changed critical path.
 
-## Runtime isolation
+## Architecture and rollback
 
-`src/app.ts`, routes, and views receive authentication and asset details through `createApp()`. `src/runtime/node.ts` is the only application boundary that opens `better-sqlite3`. `src/runtime/cloudflare.ts` is the only boundary that reads D1 and Worker bindings. Both initialize the same Better Auth configuration and shared Drizzle schema. Keep new runtime-specific imports at those boundaries.
+Before migration, custom Vite plugins selected Node/SQLite development or a hand-written Worker/D1 entry. Now Void generates the Worker and registers native `routes/` and `middleware/`. `src/runtime/cloudflare.ts` constructs request-scoped D1, Better Auth, rate limiting, and email dependencies. Existing handlers and views receive those dependencies through the Hono request context. `src/app.ts` and registration helpers remain only for fast in-process tests. Keep runtime-specific imports at the runtime boundary.
+
+The schema and migration files did not change. For code-only rollback, select the previous Worker version with Cloudflare's deployment rollback tools. Do not restore D1 for a code-only rollback. Confirm the old version is compatible with current settings and schema, then check health and account flows. Void's rollback CLI is not used because deployment ownership remains with Wrangler.
+
+To rebuild the pre-migration source, use commit `7767f14e51733e945c5c9b3b8ef47e2494d6bfcd` on a separate branch/worktree, install its frozen dependencies, restore its documented local environment setup, run its verification, and build with its original Vite configuration. Review the previous Worker name, resource IDs, and production configuration before any deployment. No database downgrade is needed for this migration; later schema changes require their own rollback plan.
 
 Local environment files, databases, Wrangler state, build output, browser reports, traces, and coverage are ignored. Do not put real secrets, account IDs, database IDs, or domains in committed files.
 

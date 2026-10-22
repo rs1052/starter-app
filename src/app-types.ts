@@ -1,6 +1,8 @@
 import type { Hono } from "hono";
 import type { Auth } from "./auth/create-auth.js";
 import type { PageAssetPaths } from "./views/layouts/app.js";
+import type { Bindings } from "./runtime/cloudflare.js";
+import type { CloudEnv } from "void";
 
 export type AuthRateLimiter = (key: string) => Promise<{
   allowed: boolean;
@@ -17,8 +19,19 @@ export interface AppOptions {
 
 type Session = Awaited<ReturnType<Auth["api"]["getSession"]>>;
 
-export type AppEnv = {
-  Variables: { requestId: string; session: Session };
-};
+export type AppEnv = CloudEnv;
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Void's extension point for custom bindings.
+  interface VoidGeneratedEnvBindings extends Bindings {}
+}
+
+declare module "void" {
+  interface CloudContextVariables {
+    requestId: string;
+    appSession: Session;
+    options: AppOptions;
+  }
+}
 
 export type App = Hono<AppEnv>;

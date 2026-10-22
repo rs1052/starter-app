@@ -1,13 +1,34 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { mkdirSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { rmSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 
-mkdirSync("data", { recursive: true });
-const path = "data/test-browser.db";
-for (const suffix of ["", "-shm", "-wal"])
-  rmSync(`${path}${suffix}`, { force: true });
-const client = new Database(path);
-client.pragma("foreign_keys = ON");
-migrate(drizzle(client), { migrationsFolder: "drizzle" });
-client.close();
+const require = createRequire(import.meta.url);
+const cli = join(
+  dirname(require.resolve("wrangler/package.json")),
+  "wrangler-dist/cli.js",
+);
+
+rmSync("data/browser-d1", { recursive: true, force: true });
+execFileSync(process.execPath, ["node_modules/vite/bin/vite.js", "build"], {
+  stdio: "inherit",
+});
+execFileSync(
+  process.execPath,
+  [
+    cli,
+    "d1",
+    "migrations",
+    "apply",
+    "DB",
+    "--local",
+    "--config",
+    "dist/ssr/wrangler.json",
+    "--persist-to",
+    "data/browser-d1",
+  ],
+  {
+    stdio: "inherit",
+    env: { ...process.env, CI: "true", WRANGLER_SEND_METRICS: "false" },
+  },
+);

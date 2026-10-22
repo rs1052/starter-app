@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { createEmailVerificationToken } from "better-auth/api";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -38,6 +41,7 @@ let output = "";
 let state: string | undefined;
 
 function wrangler(args: string[]) {
+  let stdout = "";
   const child = spawn(process.execPath, [cli, ...args], {
     cwd: root,
     detached: process.platform !== "win32",
@@ -54,6 +58,9 @@ function wrangler(args: string[]) {
     output = (output + chunk.toString()).slice(-16_000);
   };
   child.stdout.on("data", log);
+  child.stdout.on("data", (chunk: Buffer) => {
+    stdout += chunk.toString();
+  });
   child.stderr.on("data", log);
   const exited = new Promise<number | null>((resolveExit) => {
     child.once("exit", resolveExit);
@@ -62,7 +69,7 @@ function wrangler(args: string[]) {
       resolveExit(1);
     });
   });
-  const running = { child, exited };
+  const running = { child, exited, stdout: () => stdout };
   children.push(running);
   return running;
 }
@@ -106,12 +113,7 @@ async function stop(running: (typeof children)[number]) {
 }
 
 try {
-  const deploymentPath = join(root, ".wrangler/deploy/config.json");
-  const deployment = JSON.parse(await readFile(deploymentPath, "utf8")) as {
-    configPath: string;
-  };
-  assert.equal(typeof deployment.configPath, "string", "Run pnpm build first");
-  const config = resolve(dirname(deploymentPath), deployment.configPath);
+  const config = join(root, "dist/ssr/wrangler.json");
   await readFile(config, "utf8");
   const temporaryRoot =
     process.platform === "linux" && existsSync("/tmp/opencode")
@@ -137,6 +139,46 @@ try {
     0,
     "Local D1 migrations failed",
   );
+
+  const schemaQuery =
+    "SELECT name, sql FROM sqlite_master WHERE tbl_name IN ('user', 'session', 'account', 'verification') AND sql IS NOT NULL ORDER BY name";
+  const schemaCheck = wrangler([
+    "d1",
+    "execute",
+    "DB",
+    "--local",
+    ...common,
+    ...persisted,
+    "--json",
+    "--command",
+    schemaQuery,
+  ]);
+  assert.equal(await Promise.race([schemaCheck.exited, aborted]), 0);
+  const d1Schema = JSON.parse(schemaCheck.stdout()) as Array<{
+    results: Array<{ name: string; sql: string }>;
+  }>;
+  const sqlite = new Database(":memory:");
+  try {
+    sqlite.pragma("foreign_keys = ON");
+    migrate(drizzle(sqlite), { migrationsFolder: join(root, "drizzle") });
+    const normalize = (rows: Array<{ name: string; sql: string }>) =>
+      rows.map(({ name, sql }) => ({
+        name,
+        sql: sql.replace(/\s+/g, " ").trim(),
+      }));
+    assert.deepEqual(
+      normalize(d1Schema[0]!.results),
+      normalize(
+        sqlite.prepare(schemaQuery).all() as Array<{
+          name: string;
+          sql: string;
+        }>,
+      ),
+      "SQLite and D1 schemas differ",
+    );
+  } finally {
+    sqlite.close();
+  }
 
   const server = createServer();
   await new Promise<void>((done, reject) => {
@@ -230,6 +272,11 @@ try {
     });
     assert.equal(response.status, 200);
     assert.match(response.headers.get("content-type") ?? "", /text\/html/);
+    assert(response.headers.get("x-request-id"));
+    assert.match(
+      response.headers.get("content-security-policy") ?? "",
+      /form-action 'self'/,
+    );
     const html = await response.text();
     assert.match(html, /Build server-rendered Hono applications/);
     assert.match(html, signedIn ? /href="\/account"/ : /href="\/sign-in"/);
@@ -242,12 +289,65 @@ try {
     const response = await request(path);
     assert.equal(response.status, 200, path);
     assert.match(response.headers.get("content-type") ?? "", mime, path);
+    assert.equal(
+      response.headers.get("x-request-id"),
+      null,
+      "Static assets ran application middleware",
+    );
     const body = await response.text();
     assert(body.trim().length > 0, `${path} is empty`);
     assert.doesNotMatch(body, /<!doctype html|<html[\s>]/i, path);
   }
   assert.equal((await request("/worker-smoke-missing")).status, 404);
   assert.equal((await request("/assets/worker-smoke-missing.js")).status, 404);
+  for (const path of [
+    "/examples",
+    "/verify-email",
+    "/forgot-password",
+    "/sign-in",
+    "/manifest.webmanifest",
+  ]) {
+    assert.equal((await request(path)).status, 200, path);
+  }
+  assert.equal((await request("/reset-password")).status, 400);
+  assert.equal((await request("/reset-password?token=example")).status, 200);
+  for (const path of [
+    "/sign-in",
+    "/sign-up",
+    "/verify-email",
+    "/forgot-password",
+    "/reset-password",
+    "/sign-out",
+    "/account/password",
+    "/examples/refresh",
+  ]) {
+    const rejected = await request(path, {
+      method: "POST",
+      headers: { Origin: "https://other.example" },
+      body: "",
+    });
+    assert.equal(rejected.status, 403, path);
+  }
+  for (const path of ["/sign-in", "/api/auth/sign-in/email"]) {
+    const oversized = await request(path, {
+      method: "POST",
+      headers: { Origin: origin },
+      body: "x".repeat(65_537),
+    });
+    assert.equal(oversized.status, 413, path);
+  }
+  const apiOrigin = await request("/api/auth/sign-in/email", {
+    method: "POST",
+    headers: {
+      Origin: "https://other.example",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: "blocked@example.com",
+      password: "test-password",
+    }),
+  });
+  assert.equal(apiOrigin.status, 403);
 
   async function form(
     path: string,
@@ -316,6 +416,15 @@ try {
   assert.equal((await request("/sign-in")).status, 200);
   await form("/sign-in", { email, password }, "/account");
   await account();
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const limited = await request("/api/auth/worker-smoke-rate-limit", {
+      method: "POST",
+      headers: { Origin: origin },
+      body: "",
+    });
+    assert.equal(limited.status, attempt < 5 ? 404 : 429);
+    if (attempt === 5) assert.equal(limited.headers.get("retry-after"), "60");
+  }
   console.log(
     "Worker smoke passed: D1 migrations, health, pages, assets, auth forms, and simulated email delivery.",
   );

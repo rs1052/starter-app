@@ -14,7 +14,7 @@ export function renderPage(
     AppLayout({
       assets,
       children: content,
-      signedIn: Boolean(c.get("session")),
+      signedIn: Boolean(c.get("appSession")),
       title,
     }),
     status,

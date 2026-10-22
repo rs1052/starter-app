@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
-import Database from "better-sqlite3";
-import { verifyBrowserEmail } from "./auth-fixture.js";
+import { browserD1Query, verifyBrowserEmail } from "./auth-fixture.js";
 
 test("a user can reset a forgotten password", async ({ page }) => {
   const email = `reset-${Date.now()}@example.com`;
@@ -18,14 +17,9 @@ test("a user can reset a forgotten password", async ({ page }) => {
     "Reset link requested",
   );
 
-  const database = new Database("data/test-browser.db", { readonly: true });
-  database.pragma("foreign_keys = ON");
-  const result = database
-    .prepare(
-      "select identifier from verification where identifier like 'reset-password:%' order by created_at desc limit 1",
-    )
-    .get() as { identifier: string } | undefined;
-  database.close();
+  const result = browserD1Query(
+    "select identifier from verification where identifier like 'reset-password:%' order by created_at desc limit 1",
+  )[0]?.results[0];
   const token = result?.identifier.replace("reset-password:", "");
   expect(token).toBeTruthy();
 

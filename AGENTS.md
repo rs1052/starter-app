@@ -2,7 +2,7 @@
 
 - Inspect the relevant code and Git state before changing files. Preserve unrelated work and existing public behavior.
 - Choose the smallest direct solution that meets the current requirement. Reuse existing code and platform features before adding dependencies, files, configuration, state, or abstractions.
-- Use Node and SQLite for `pnpm dev`, the actual Worker and local D1 for `pnpm build` and `pnpm preview`, and Cloudflare for deployment. Do not add a separate Node production server.
+- Use Void native routes/middleware and local Workers/D1 for `pnpm dev` and `pnpm preview`. Build with Void's Vite plugin and deploy the generated Worker with Wrangler. Keep remote migrations explicit and separate from deployment. Do not use Void provisioning, managed auth, or deployment migrations, and do not add a Node production server.
 - Enable foreign keys explicitly on every SQLite connection. Keep Drizzle schema and migrations compatible with both SQLite and D1. Check Better Auth schema compatibility when upgrading authentication dependencies, using the disposable configuration documented in `README.md`.
 - Verify current external APIs instead of guessing. Pin compatible dependencies and explain any required configuration.
 - Validate external input, enforce authorization on the server, bound request bodies, escape user-controlled output, preserve authentication headers, and keep secrets out of source control.
@@ -18,12 +18,12 @@
 
 ### Application composition
 
-- `src/app.ts` wires routes, middleware, and application dependencies together. Keep application composition here, not feature logic, database queries, or request handling. Runtime entry points own environment-specific startup.
+- `routes/` maps URLs and methods to native Void handlers. `middleware/` composes global request behavior and runtime dependencies. `src/app.ts` is only an in-process Hono test harness using the same handlers and middleware. Do not forward native routes into that test app.
 - `src/app-types.ts` defines the shared application's dependency and request-context contracts.
 
 ### Routes
 
-- `src/routes/` owns HTTP behavior: URLs and methods, request parsing and validation, authentication and authorization, calls to feature behavior, prepared view data, and redirects, status codes, headers, and responses.
+- `src/routes/` owns HTTP behavior behind the native route exports: request parsing and validation, authentication and authorization, calls to feature behavior, prepared view data, and redirects, status codes, headers, and responses. Keep native route files thin. Preserve `applicationHandler` error sanitization and the shared request protections when adding routes.
 - Keep small route-specific helpers private. Do not bury substantial reusable application rules in handlers or split a route solely because it is long.
 - Auth form parsing and validation, Better Auth calls, `authResult`, and the small `/account` route belong in `src/routes/auth.ts`. Split account behavior only when it grows into a separate feature.
 
@@ -43,7 +43,9 @@
 ### Database and runtime boundaries
 
 - `src/db/` owns shared database schema and infrastructure. Keep Drizzle schema and migration concerns database-focused. Generated migrations remain in `drizzle/`. Application behavior uses the project's database contracts, not runtime-specific database APIs.
-- `src/runtime/node.ts` owns Node/SQLite setup. `src/runtime/cloudflare.ts` owns Cloudflare/D1 setup. Runtime-specific imports and bindings stay at these boundaries unless a module is explicitly runtime-specific. `src/runtime/config.ts` owns runtime configuration parsing.
+- `src/runtime/cloudflare.ts` owns D1, email binding, rate limiter, and execution-context setup. Runtime-specific imports and bindings stay at this boundary unless a module is explicitly runtime-specific. `src/runtime/config.ts` owns runtime configuration parsing. SQLite is only for disposable tests and optional schema inspection.
+- `void.config.ts` owns reviewed Cloudflare settings and resource IDs. Drizzle's existing `drizzle/` directory and D1's migration tracking remain authoritative. Do not copy history into Void's conventional migration directory. Build before running Wrangler commands with `--config dist/ssr/wrangler.json`; deployment must not run remote migrations.
+- Void accepts only a root `.env`; keep templates under `config/`, declare application settings in `env.ts`, and store production schema-declared server values as Worker secrets. Never commit local settings, generated `.void/` state, generated Wrangler configuration, or secret-bearing build output.
 - Shared application and database-facing behavior stays runtime-neutral, compatible with both runtimes, and asynchronous.
 
 ### HTTP infrastructure and browser code

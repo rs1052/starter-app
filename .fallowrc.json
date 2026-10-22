@@ -1,8 +1,10 @@
 {
   "$schema": "./node_modules/fallow/schema.json",
   "entry": [
-    "src/runtime/node.ts",
+    "env.ts",
     "src/runtime/cloudflare.ts",
+    "routes/**/*.ts",
+    "middleware/*.ts",
     "resources/js/app.ts",
     "scripts/*.ts",
     "tests/**/*.ts",
