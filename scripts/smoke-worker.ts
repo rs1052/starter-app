@@ -266,19 +266,25 @@ try {
   }
   assert(ready, "Worker did not become healthy within 30 seconds");
 
+  const header = (response: Response, name: string) =>
+    response.headers.get(name) ?? "";
+
   async function homepage(signedIn: boolean) {
     const response = await request("/", {
       headers: { "Sec-Fetch-Mode": "navigate" },
     });
     assert.equal(response.status, 200);
-    assert.match(response.headers.get("content-type") ?? "", /text\/html/);
-    assert(response.headers.get("x-request-id"));
+    assert.match(header(response, "content-type"), /text\/html/);
+    assert(header(response, "x-request-id"));
     assert.match(
-      response.headers.get("content-security-policy") ?? "",
+      header(response, "content-security-policy"),
       /form-action 'self'/,
     );
     const html = await response.text();
     assert.match(html, /Build server-rendered Hono applications/);
+    assert.match(html, /id="__VOID_PAGE_DATA__"/);
+    assert.equal(header(response, "cache-control"), "no-store");
+    assert.match(header(response, "vary"), /X-VoidPages/);
     assert.match(html, signedIn ? /href="\/account"/ : /href="\/sign-in"/);
   }
   await homepage(false);
@@ -367,13 +373,36 @@ try {
   async function account() {
     const response = await request("/account");
     assert.equal(response.status, 200);
-    assert.match(await response.text(), /worker-smoke@example\.com/);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    const html = await response.text();
+    assert.match(html, /worker-smoke@example\.com/);
+    assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+    assert.doesNotMatch(html, /<script>alert\(1\)<\/script>/);
+    const data = await request("/account", {
+      headers: { "X-VoidPages": "true" },
+    });
+    assert.equal(data.status, 200);
+    assert.equal(data.headers.get("cache-control"), "no-store");
+    assert.match(data.headers.get("vary") ?? "", /X-VoidPages/);
+    const page = (await data.json()) as {
+      props: { user: Record<string, unknown> };
+      shared: Record<string, unknown>;
+    };
+    assert.deepEqual(page.props.user, {
+      name: "<script>alert(1)</script>",
+      email,
+    });
+    assert.deepEqual(page.shared, { signedIn: true });
   }
   assert.equal((await request("/sign-up")).status, 200);
   const signUp = await request("/sign-up", {
     method: "POST",
     headers: { Origin: origin },
-    body: new URLSearchParams({ name: "Worker Smoke", email, password }),
+    body: new URLSearchParams({
+      name: "<script>alert(1)</script>",
+      email,
+      password,
+    }),
   });
   assert.equal(signUp.status, 200);
   assert.match(await signUp.text(), /Check your email/);
@@ -412,6 +441,11 @@ try {
   const anonymous = await request("/account");
   assert.equal(anonymous.status, 302);
   assert.equal(anonymous.headers.get("location"), "/sign-in");
+  const anonymousData = await request("/account", {
+    headers: { "X-VoidPages": "true" },
+  });
+  assert.equal(anonymousData.status, 302);
+  assert.equal(anonymousData.headers.get("location"), "/sign-in");
   await homepage(false);
   assert.equal((await request("/sign-in")).status, 200);
   await form("/sign-in", { email, password }, "/account");

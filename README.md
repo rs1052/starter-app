@@ -1,6 +1,6 @@
-# Void server-rendered starter
+# Void Vue server-rendered starter
 
-A small server-rendered TypeScript starter using native Void routes and middleware on Cloudflare Workers with D1, including local development. It retains Hono HTML views, Better Auth email/password authentication, a protected account page, HTMX and Alpine examples, security defaults, and automated accessibility checks. No UI framework is required.
+A small server-rendered Vue 3 and TypeScript starter using native Void Pages, routes, and middleware on Cloudflare Workers with D1, including local development. It retains Better Auth email/password authentication, a protected account page, progressive-enhancement examples, security defaults, and automated accessibility checks. It does not need Vue Router, a state store, or a second application framework.
 
 Void owns routing, development, and Worker builds. Wrangler deploys the generated Worker without applying migrations. Do not use `void deploy`, `void db`, or `void/auth` in this starter: Drizzle migrations and Better Auth remain application-owned.
 
@@ -40,7 +40,7 @@ pnpm db:migrate
 pnpm dev
 ```
 
-Open <http://localhost:5173>. Void's Vite plugin runs the actual Worker and browser asset server as one process. CSS and `resources/js/app.ts` use Vite HMR. Local D1 persists in ignored `.void/` state. `pnpm db:migrate` builds first so Wrangler can read the generated binding configuration.
+Open <http://localhost:5173>. Void's Vite and Vue plugins run the actual Worker, Vue SSR, hydration, and browser asset server as one process. Vue components and CSS use Vite HMR. Local D1 persists in ignored `.void/` state. `pnpm db:migrate` builds first so Wrangler can read the generated binding configuration.
 
 The former Node/SQLite development server has been removed after verifying the replacement. Development and preview now use the same local Workers/D1 runtime. Existing `data/app.db` files are not deleted or imported into D1. `better-sqlite3` remains for disposable schema/auth tests and optional SQLite inspection, not an application runtime.
 
@@ -48,7 +48,7 @@ Void supports only a single root `.env`, not `.dev.vars*` or `.env.*` files, inc
 
 ## Local Worker preview
 
-Worker preview uses the same local D1 state as development. You do not need a Cloudflare account. Set `BETTER_AUTH_URL` and `TRUSTED_ORIGINS` in `.env` to exactly `http://127.0.0.1:4174`, then run:
+Worker preview uses the same local D1 state as development. You do not need a Cloudflare account. Set `BETTER_AUTH_URL` and `TRUSTED_ORIGINS` in `.env` to exactly `http://127.0.0.1:4174` and set a nonblank `EMAIL_FROM`, such as the template sender, then run:
 
 ```sh
 pnpm db:migrate:d1:local
@@ -128,17 +128,21 @@ Change the CLI version to match an upgraded Better Auth package. This checks the
 
 Health and auth API requests skip application session lookup. Better Auth handles its own API authentication. Successful password resets revoke existing sessions and invalidate the reset token.
 
-The HTMX example has an ordinary form fallback, and the disclosure uses the CSP-compatible build of Alpine.
+The Vue refresh example has an ordinary form fallback. The native HTML disclosure works with keyboard input and without JavaScript. Authentication forms use ordinary full-document submissions, including validation errors, so sign-in and sign-out do not depend on client-side session state.
 
-## Server-rendered views
+## Vue Pages and server boundaries
 
-Native method exports under `routes/` own the URL mapping. They call existing HTTP handlers in `src/routes/`, which pass view data to page functions under `src/views/pages/`. `middleware/01.application.ts` composes request IDs, logging, security headers, runtime dependencies, session lookup, and request protections. `src/http/handler.ts` wraps native handlers so application failures retain generic responses rather than Void's development error pages. `src/app.ts` is an in-process Hono test harness only.
+Add rendered pages under `pages/`, for example `pages/about.vue` for `/about` or `pages/account/index.vue` for `/account`. `pages/layout.vue` supplies the shared shell. Reusable components live under `src/components/` only when actually reused. Keep existing CSS and design tokens under `resources/css/`.
 
-Pages compose reusable UI primitives from `src/views/components/` and render inside the document shell in `src/views/layouts/`. Existing HTML, branding, URLs, forms, and no-JavaScript behavior are retained. Pages may be grouped by product area, as the authentication pages are, while independently reusable primitives have their own named modules.
+Add a companion `.server.ts` only when a page needs server data, authorization, an action, or head metadata. Native Void `loader`, `action`, and `head` exports use the existing Hono request context. Current companions use `pageLoader`, `pageAction`, and `pageHead` from `src/http/page.ts` to adapt existing handlers. Handlers prepare public data, responses, and redirects; Vue renders that data. The small status bridge in application middleware preserves HTTP 400 validation pages and 404 pages because Void 1.2.0 otherwise reconstructs rendered responses as 200.
 
-Keep page-specific helpers private to their page. Add a feature partial only when markup is reused within that feature, and move markup into `components/` only when it is context-free and reusable across features. These `hono/html` functions serve the same role as layouts, views, and partials in template-engine-based server applications.
+Keep API, health, and non-page endpoints under native `routes/`. Do not add a GET route that shadows a Vue page, or a native wildcard that shadows all Pages. `src/routes/` continues to own parsing, validation, auth calls, and HTTP behavior. `middleware/01.application.ts` composes request IDs, logging, headers, dependencies, session lookup, and protections. `src/app.ts` is an in-process backend test harness; it exposes prepared page data as JSON. Browser and Worker tests verify actual rendered HTML and escaping.
 
-Views render prepared data without database access, authorization, or external service calls. Extract application rules into specific domain modules as needed, such as `src/auth/rate-limit.ts`. Keep small request-specific helpers with their route. `AGENTS.md` has the detailed code-placement rules.
+Never import auth, database, or runtime modules into Vue components. Authenticate every protected loader/action on the server, including `X-VoidPages` data requests. Only explicit UI fields and a signed-in navigation boolean reach the browser. Session tokens, password hashes, and complete session records never become page props. The reset page alone retains its short-lived reset token from the reset URL/form so ordinary validation retries keep working. Page responses use `Cache-Control: no-store` and vary on `X-VoidPages`.
+
+Keep ordinary forms for auth mutations. Use local Vue state for small interactions and native disclosure elements when sufficient. Avoid Vue Router, Pinia, generic composables/stores, or a component/CSS framework without a concrete need. Do not use deferred SSR under the current strict CSP because its executable inline scripts require a separate security design. `AGENTS.md` has detailed placement rules.
+
+Navigation uses ordinary links with native Pages SSR and browser history. The adapter's current `Link` emits inline styles incompatible with this starter's CSP; no custom client router replaces it. CSS is a separate Vite entry served by an external stylesheet link, preserving styled SSR and no-JavaScript pages without allowing inline styles.
 
 ## PWA installability
 
@@ -157,7 +161,7 @@ pnpm exec playwright install chromium
 pnpm verify
 ```
 
-`pnpm verify` prepares Void types, then runs ESLint, Stylelint, Markdownlint, Prettier check, TypeScript checking, Vitest, Playwright behavior tests, axe checks, Fallow, and finally `pnpm test:worker`. Standalone type checking also runs `void prepare`. Browser preparation builds the Worker and applies migrations to disposable local D1. The Worker test builds Void output and checks the actual Worker with disposable local D1 and test-only configuration, including origin/body protections, headers, rate limiting, schema parity, and simulated email. Tests do not send real email. Set `CHROMIUM_PATH` to use an installed Chromium instead of Playwright's download.
+`pnpm verify` prepares Void types, then runs ESLint, Stylelint, Markdownlint, Prettier check, Vue-aware TypeScript checking (`vue-tsc --noEmit`), Vitest, Playwright behavior tests, axe checks, Fallow, and finally `pnpm test:worker`. Standalone type checking also runs `void prepare`. Browser preparation builds the Worker and applies migrations to disposable local D1. The Worker test builds Void output and checks actual Vue SSR, assets, private page data, escaping, origin/body protections, headers, rate limiting, schema parity, and simulated email with disposable local D1. Tests do not send real email. Set `CHROMIUM_PATH` to use an installed Chromium instead of Playwright's download.
 
 Void 1.2.0 requires Wrangler 4.151 or newer and the same Hono version for compatible context types. Exact pins and narrow release-age exceptions in `pnpm-workspace.yaml` cover the evaluated release and its new packages; they do not disable the release-age policy globally.
 
@@ -184,9 +188,9 @@ pnpm preview
 
 Create a repository with GitHub's **Use this template** action, then clone it. Follow Local setup, run `pnpm verify`, and use Local Worker preview to check the production runtime before configuring deployment.
 
-Before deployment, replace the package name in `package.json` and Worker name and D1 database name/ID in `void.config.ts`. Choose a rate-limit namespace ID unique within your Cloudflare account. Replace starter branding in views and this README, and configure the production domain, trusted origins, and verified email sender as Worker secrets. Test first with a new staging Worker and disposable D1 database, not the production Worker.
+Before deployment, replace the package name in `package.json` and Worker name and D1 database name/ID in `void.config.ts`. Choose a rate-limit namespace ID unique within your Cloudflare account. Replace starter branding in `pages/` and this README, and configure the production domain, trusted origins, and verified email sender as Worker secrets. Test first with a new staging Worker and disposable D1 database, not the production Worker.
 
-Replace the manifest's `name`, `short_name`, `description`, `theme_color`, and `background_color`, all starter icons in `public/icons/`, and the `theme-color` metadata in `src/views/layouts/app.ts`.
+Replace the manifest's `name`, `short_name`, `description`, `theme_color`, and `background_color`, all starter icons in `public/icons/`, and the `theme-color` metadata in `void.config.ts`.
 
 Find committed placeholders and starter names:
 
@@ -298,7 +302,9 @@ Use [Workers Issues](https://developers.cloudflare.com/workers/observability/iss
 
 ## Architecture and rollback
 
-Before migration, custom Vite plugins selected Node/SQLite development or a hand-written Worker/D1 entry. Now Void generates the Worker and registers native `routes/` and `middleware/`. `src/runtime/cloudflare.ts` constructs request-scoped D1, Better Auth, rate limiting, and email dependencies. Existing handlers and views receive those dependencies through the Hono request context. `src/app.ts` and registration helpers remain only for fast in-process tests. Keep runtime-specific imports at the runtime boundary.
+Before migration, custom Vite plugins selected Node/SQLite development or a hand-written Worker/D1 entry. Now Void generates the Worker and registers native `routes/` and `middleware/`. `src/runtime/cloudflare.ts` constructs request-scoped D1, Better Auth, rate limiting, and email dependencies. Existing handlers and page server companions receive those dependencies through the Hono request context. `src/app.ts` and registration helpers remain only for fast in-process tests. Keep runtime-specific imports at the runtime boundary.
+
+Vue Pages owns SSR and hydration; no separate client bootstrap or Node production server is required. To roll back the Vue migration, use merged Plan 1 commit `14ab737cc2c1cef7c770773a63a1219b5e54838f` in a separate branch/worktree, install its frozen dependencies, use its documented local settings, verify, and build. For a deployed code-only rollback, select the prior Worker version. No database downgrade is needed: the Vue migration does not change schema, migration history, auth provider, or Cloudflare resources.
 
 The schema and migration files did not change. For code-only rollback, select the previous Worker version with Cloudflare's deployment rollback tools. Do not restore D1 for a code-only rollback. Confirm the old version is compatible with current settings and schema, then check health and account flows. Void's rollback CLI is not used because deployment ownership remains with Wrangler.
 

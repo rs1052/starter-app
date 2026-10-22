@@ -14,9 +14,9 @@
   },
   "include": [
     "src",
+    "pages",
     "routes",
     "middleware",
-    "resources/js",
     "scripts",
     "tests",
     "*.ts"

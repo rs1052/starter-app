@@ -55,9 +55,6 @@ export function cloudflareOptions(
     ipAddressHeaders: ["cf-connecting-ip"],
   });
   return {
-    assets: import.meta.env.DEV
-      ? { css: "/resources/css/app.css", script: "/resources/js/app.ts" }
-      : { css: "/assets/app.css", script: "/assets/app.js" },
     auth,
     authClientAddress: (request) =>
       request.headers.get("CF-Connecting-IP") ?? "local-worker",

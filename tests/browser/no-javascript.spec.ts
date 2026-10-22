@@ -12,4 +12,31 @@ test("ordinary example form works without JavaScript", async ({ page }) => {
   await expect(
     page.getByText("The server rendered a fresh fragment."),
   ).toBeVisible();
+  await page.getByText("Toggle details", { exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByText("This state stays entirely in the browser."),
+  ).toBeVisible();
+});
+
+test("authentication forms preserve errors without JavaScript", async ({
+  page,
+}) => {
+  await page.goto("/sign-in");
+  await page.getByLabel("Email").fill("no-javascript@example.com");
+  await page.getByLabel("Password", { exact: true }).fill("incorrect-password");
+  const invalid = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/sign-in") &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Sign in" }).click();
+  expect((await invalid).status()).toBe(400);
+  await expect(page.getByRole("alert")).toHaveText(
+    "The credentials could not be accepted.",
+  );
+  await expect(page.getByLabel("Email")).toHaveValue(
+    "no-javascript@example.com",
+  );
+  await expect(page.getByLabel("Password", { exact: true })).toHaveValue("");
 });

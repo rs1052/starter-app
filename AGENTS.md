@@ -18,20 +18,22 @@
 
 ### Application composition
 
-- `routes/` maps URLs and methods to native Void handlers. `middleware/` composes global request behavior and runtime dependencies. `src/app.ts` is only an in-process Hono test harness using the same handlers and middleware. Do not forward native routes into that test app.
+- `pages/` maps rendered pages and their server loaders/actions. `routes/` maps native API and non-page handlers. `middleware/` composes global request behavior and runtime dependencies. `src/app.ts` is only an in-process Hono test harness using the same handlers and middleware; it exposes prepared page data as JSON. Do not forward native routes into that test app.
 - `src/app-types.ts` defines the shared application's dependency and request-context contracts.
 
 ### Routes
 
-- `src/routes/` owns HTTP behavior behind the native route exports: request parsing and validation, authentication and authorization, calls to feature behavior, prepared view data, and redirects, status codes, headers, and responses. Keep native route files thin. Preserve `applicationHandler` error sanitization and the shared request protections when adding routes.
+- `src/routes/` owns HTTP behavior behind native routes and page loaders/actions: parsing and validation, authentication and authorization, feature calls, prepared page data, redirects, status codes, headers, and responses. Keep native routes and companion `.server.ts` files thin. Preserve sanitized errors and shared request protections when adding routes.
 - Keep small route-specific helpers private. Do not bury substantial reusable application rules in handlers or split a route solely because it is long.
 - Auth form parsing and validation, Better Auth calls, `authResult`, and the small `/account` route belong in `src/routes/auth.ts`. Split account behavior only when it grows into a separate feature.
 
-### Views
+### Vue pages and components
 
-- `src/views/layouts/` owns complete-page structure, `src/views/pages/` owns route-level rendering, and `src/views/components/` owns independently reusable UI primitives with their own named modules.
-- Views receive prepared data and render markup. They must not access databases, read runtime bindings, perform authorization, call external services, or contain business rules.
-- Keep private rendering helpers with their owner. Add feature-specific partials alongside that feature only for actual reuse. `src/views/pages/account.ts` is an independent page concept. Do not move it for folder symmetry.
+- `pages/layout.vue` owns the shared shell. `pages/*.vue` owns route-level rendering; companion `.server.ts` files export native Void loaders, actions, and head data. Reused Vue UI belongs in `src/components/`, only when there is actual reuse.
+- Vue components receive prepared data. Never import server authentication, database, runtime bindings, or business logic into components. Server companions may use those dependencies through existing request handlers and middleware.
+- Use `pageLoader`, `pageAction`, and `pageHead` from `src/http/page.ts` for existing prepared-data handlers. The request-scoped `pageStatus` bridge preserves rendered 400/404 responses with Void 1.2.0. Do not weaken status assertions or security checks to match framework defaults.
+- Preserve ordinary HTML forms for auth and sensitive mutations. Authorization runs server-side on every HTML and Pages data request. Share only the signed-in navigation boolean and explicit UI fields, never full sessions, session tokens, dependency objects, or password hashes. The reset page alone retains the short-lived reset token already supplied in its URL/form so validation retries work. Page responses are no-store.
+- Use native links for navigation. Avoid the adapter's `Link` while it emits inline styles incompatible with the strict CSP; no custom client router replaces it. Avoid optional navigation caches for private data. Do not add Vue Router, Pinia, generic stores/composables, component libraries, or deferred SSR without a concrete need and compatible security design. Deferred scripts do not satisfy the current strict CSP.
 
 ### Feature behavior and grouping
 
@@ -51,7 +53,7 @@
 ### HTTP infrastructure and browser code
 
 - `src/http/` owns reusable HTTP/page-response infrastructure, not product rules. `src/middleware/` owns cross-cutting request behavior, not domain rules merely used during a request.
-- `resources/js/` owns browser behavior. `resources/css/` owns styles. Prefer server rendering and progressive enhancement. Do not move server application logic into browser code.
+- Vue pages/components own browser behavior. `resources/css/` owns styles and tokens. Void's Vue adapter generates SSR/hydration entries; do not add another browser bootstrap. Prefer SSR and progressive enhancement. Do not move server application logic into browser code.
 
 ### Tests
 
@@ -73,10 +75,10 @@
 
 ### Dependency direction
 
-Use this dependency direction as an ownership guide: `runtime -> application composition -> routes/features -> views/infrastructure`.
+Use this dependency direction as an ownership guide: `runtime -> application composition -> routes/features -> pages/components`.
 
 - Runtime modules construct dependencies for the shared application. `app.ts` composes routes and middleware.
-- Routes may depend on feature logic, HTTP helpers, and views. Views depend only on rendering-related code and their input types.
+- Routes and page server companions may depend on feature logic and HTTP helpers. Vue components depend only on rendering-related code and public input types; use type-only imports when sharing server-declared types.
 - Shared feature logic should not depend on Hono `Context` unless it needs HTTP behavior. Shared application code must not import Node- or Cloudflare-specific runtime modules.
 - Keep these boundaries understandable with TypeScript and code review. Do not add architecture tooling, layering-only barrel files, or path aliases.
 

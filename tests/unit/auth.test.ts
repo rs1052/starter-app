@@ -16,7 +16,7 @@ beforeEach(() => {
 
 afterEach(() => closeAppFixture(fixture));
 
-it("requires email verification, persists a session, escapes values, and signs out", async () => {
+it("requires email verification, persists a session, limits user data, and signs out", async () => {
   const anonymous = await fixture.app.request("/account");
   expect(anonymous.status).toBe(302);
 
@@ -56,10 +56,11 @@ it("requires email verification, persists a session, escapes values, and signs o
   const account = await fixture.app.request("/account", {
     headers: { cookie: cookie! },
   });
-  const html = await account.text();
   expect(account.status).toBe(200);
-  expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
-  expect(html).not.toContain("<script>alert(1)</script>");
+  // HTML escaping is verified against the actual Vue Worker response.
+  expect(await account.json()).toMatchObject({
+    user: { name: "<script>alert(1)</script>" },
+  });
 
   const signOut = await fixture.app.request("/sign-out", {
     method: "POST",
