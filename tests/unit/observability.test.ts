@@ -27,7 +27,9 @@ it("logs correlated requests and reports health failures safely", async () => {
       (call: unknown[]) =>
         JSON.parse(String(call[0])) as Record<string, unknown>,
     )
-    .filter((record) => record.event === "request.completed");
+    .filter(
+      (record: Record<string, unknown>) => record.event === "request.completed",
+    );
   expect(completions).toEqual([
     expect.objectContaining({ requestId, route: "/health", status: 200 }),
   ]);
@@ -77,7 +79,9 @@ it("returns and logs a correlation ID for uncaught errors", async () => {
       (call: unknown[]) =>
         JSON.parse(String(call[0])) as Record<string, unknown>,
     )
-    .filter((record) => record.event === "request.completed");
+    .filter(
+      (record: Record<string, unknown>) => record.event === "request.completed",
+    );
   expect(completions).toEqual([
     expect.objectContaining({ requestId, status: 500 }),
   ]);
