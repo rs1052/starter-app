@@ -4,7 +4,7 @@ import type { Context } from "hono";
 const FORM_LIMIT = 64 * 1024;
 
 export async function sameOrigin(c: Context, next: () => Promise<void>) {
-  if (c.req.method === "GET") return next();
+  if (c.req.method === "GET" || c.req.method === "HEAD") return next();
   const origin = c.req.header("Origin");
   if (!origin || origin !== new URL(c.req.url).origin) {
     return c.text("Invalid request origin.", 403);

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import {
   closeAppFixture,
   createAppFixture,
@@ -49,6 +49,26 @@ it("stops reading an oversized stream and bounds Better Auth API bodies", async 
 });
 
 afterEach(() => closeAppFixture(fixture));
+
+it("preserves GET status and redirects for HEAD without requiring an Origin", async () => {
+  for (const path of [
+    "/sign-in",
+    "/sign-up",
+    "/verify-email",
+    "/forgot-password",
+    "/reset-password",
+    "/account",
+    "/account/password",
+  ]) {
+    const get = await fixture.app.request(path);
+    const head = await fixture.app.request(path, { method: "HEAD" });
+    expect(head.status, path).toBe(get.status);
+    expect(head.headers.get("location"), path).toBe(
+      get.headers.get("location"),
+    );
+    expect(await head.text(), path).toBe("");
+  }
+});
 
 it("rejects invalid origins, malformed forms, and oversized bodies", async () => {
   const wrongOrigin = await fixture.app.request("/sign-in", {

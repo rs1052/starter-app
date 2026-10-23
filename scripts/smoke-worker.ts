@@ -281,7 +281,7 @@ try {
       /form-action 'self'/,
     );
     const html = await response.text();
-    assert.match(html, /Build server-rendered Hono applications/);
+    assert.match(html, /Build server-rendered Void applications/);
     assert.match(html, /id="__VOID_PAGE_DATA__"/);
     assert.equal(header(response, "cache-control"), "no-store");
     assert.match(header(response, "vary"), /X-VoidPages/);
@@ -317,6 +317,26 @@ try {
   }
   assert.equal((await request("/reset-password")).status, 400);
   assert.equal((await request("/reset-password?token=example")).status, 200);
+  for (const path of [
+    "/sign-in",
+    "/sign-up",
+    "/verify-email",
+    "/forgot-password",
+    "/reset-password",
+    "/account",
+    "/account/password",
+  ]) {
+    const get = await request(path);
+    const head = await request(path, { method: "HEAD" });
+    assert.equal(head.status, get.status, `${path}: HEAD differs from GET`);
+    assert.equal(
+      head.headers.get("location"),
+      get.headers.get("location"),
+      path,
+    );
+    assert.equal(await head.text(), "", path);
+    await get.arrayBuffer();
+  }
   for (const path of [
     "/sign-in",
     "/sign-up",
@@ -393,6 +413,10 @@ try {
       email,
     });
     assert.deepEqual(page.shared, { signedIn: true });
+    assert.equal(
+      (await request("/account/password", { method: "HEAD" })).status,
+      404,
+    );
   }
   assert.equal((await request("/sign-up")).status, 200);
   const signUp = await request("/sign-up", {
@@ -435,6 +459,28 @@ try {
   assert.equal(verified.headers.get("location"), "/sign-in?verified=1");
   await form("/sign-in", { email, password }, "/account");
   assert(cookies.size > 0, "Signin did not set session cookies");
+  const renewalDue = wrangler([
+    "d1",
+    "execute",
+    "DB",
+    "--local",
+    ...common,
+    ...persisted,
+    "--command",
+    "UPDATE session SET expires_at = unixepoch() + 432000, updated_at = unixepoch() - 172800",
+  ]);
+  assert.equal(await Promise.race([renewalDue.exited, aborted]), 0);
+  const renewed = await request("/account", {
+    headers: { "X-VoidPages": "true" },
+  });
+  assert.equal(renewed.status, 200);
+  assert(
+    renewed.headers
+      .getSetCookie()
+      .some((cookie) => cookie.includes("better-auth.session_token=")),
+    "Pages data response dropped the renewed session cookie",
+  );
+  await renewed.arrayBuffer();
   await account();
   await homepage(true);
   await form("/sign-out", {}, "/");

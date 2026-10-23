@@ -27,12 +27,15 @@ test("Vue SSR, hydration, navigation history, and form errors", async ({
     Boolean(
       (
         document.getElementById("app") as
-          (HTMLElement & { __vue_app__?: unknown }) | null
+          | (HTMLElement & { __vue_app__?: unknown })
+          | null
       )?.__vue_app__,
     ),
   );
   await page.getByRole("button", { name: "Refresh from server" }).click();
-  await expect(page.locator("#server-status")).toContainText("fresh fragment");
+  await expect(page.locator("#server-status")).toHaveText(
+    "The server refresh completed.",
+  );
   await expect(page).toHaveURL(/\/examples$/);
   await page.goBack();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
@@ -71,7 +74,8 @@ test("preserves input typed before hydration", async ({ page }) => {
       Boolean(
         (
           document.getElementById("app") as
-            (HTMLElement & { __vue_app__?: unknown }) | null
+            | (HTMLElement & { __vue_app__?: unknown })
+            | null
         )?.__vue_app__,
       ),
     ),
@@ -81,7 +85,8 @@ test("preserves input typed before hydration", async ({ page }) => {
     Boolean(
       (
         document.getElementById("app") as
-          (HTMLElement & { __vue_app__?: unknown }) | null
+          | (HTMLElement & { __vue_app__?: unknown })
+          | null
       )?.__vue_app__,
     ),
   );

@@ -1,7 +1,6 @@
-import type { Context, Handler } from "hono";
+import type { Context, Handler, MiddlewareHandler } from "hono";
 import { defineHandler, type TypedHandler, type ValidatorSlots } from "void";
 import type { AppEnv } from "../app-types.js";
-import { logRequest } from "../middleware/application.js";
 
 type ApplicationHandler<T> = TypedHandler<
   ValidatorSlots,
@@ -25,7 +24,26 @@ export function applicationHandler<T>(
   }) as ApplicationHandler<T>;
 }
 
+export const applicationErrorBoundary: MiddlewareHandler<AppEnv> = async (
+  c,
+  next,
+) => {
+  try {
+    await next();
+    // Hono handles downstream renderer errors before next() returns.
+    if (c.error && c.res.status >= 500) {
+      c.res = applicationError(c.error, c);
+    }
+  } catch (error) {
+    return applicationError(
+      error instanceof Error ? error : new Error("Unhandled failure"),
+      c,
+    );
+  }
+};
+
 export function applicationError(error: Error, c: Context<AppEnv>) {
+  c.header("Cache-Control", "no-store");
   const requestId = c.get("requestId");
   console.error(
     JSON.stringify({
@@ -40,6 +58,5 @@ export function applicationError(error: Error, c: Context<AppEnv>) {
       },
     }),
   );
-  logRequest(c, undefined, 500);
   return c.text(`Something went wrong. Reference: ${requestId}`, 500);
 }

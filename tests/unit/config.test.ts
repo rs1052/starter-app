@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { parseRuntimeConfig } from "../../src/runtime/config.js";
 
 const secret = "unit-test-secret-that-is-at-least-32-characters";
@@ -17,7 +17,6 @@ describe("parseRuntimeConfig", () => {
       authURL: "http://localhost:5173",
       emailFrom: undefined,
       production: false,
-      resendApiKey: undefined,
       secret,
       trustedOrigins: ["http://localhost:5173"],
     });
@@ -38,7 +37,6 @@ describe("parseRuntimeConfig", () => {
       authURL: "https://example.com",
       emailFrom: "App <no-reply@example.com>",
       production: true,
-      resendApiKey: undefined,
       secret,
       trustedOrigins: ["https://example.com", "https://admin.example.com"],
     });
@@ -75,31 +73,17 @@ describe("parseRuntimeConfig", () => {
     ).toThrow("EMAIL_FROM is required in production");
   });
 
-  it.each([
-    { RESEND_API_KEY: "test-key" },
-    { EMAIL_FROM: "App <no-reply@example.com>" },
-  ])("requires development email settings together (%o)", (emailSettings) => {
-    expect(() =>
-      parseRuntimeConfig(
-        { BETTER_AUTH_SECRET: secret, ...emailSettings },
-        false,
-      ),
-    ).toThrow("EMAIL_FROM and RESEND_API_KEY must be configured together");
-  });
-
-  it("accepts optional Resend delivery in Node development", () => {
+  it("normalizes the local email sender without provider credentials", () => {
     expect(
       parseRuntimeConfig(
         {
           BETTER_AUTH_SECRET: secret,
           EMAIL_FROM: " App <no-reply@example.com> ",
-          RESEND_API_KEY: " test-key ",
         },
         false,
       ),
     ).toMatchObject({
       emailFrom: "App <no-reply@example.com>",
-      resendApiKey: "test-key",
     });
   });
 

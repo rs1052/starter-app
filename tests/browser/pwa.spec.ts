@@ -37,8 +37,8 @@ test("shared shell provides the manifest and install icons", async ({
     },
   ];
   expect(manifest).toMatchObject({
-    name: "Hono starter",
-    short_name: "Hono starter",
+    name: "Void Vue starter",
+    short_name: "Void Vue starter",
     start_url: "/",
     scope: "/",
     display: "standalone",

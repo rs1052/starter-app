@@ -2,7 +2,7 @@
 
 - Inspect the relevant code and Git state before changing files. Preserve unrelated work and existing public behavior.
 - Choose the smallest direct solution that meets the current requirement. Reuse existing code and platform features before adding dependencies, files, configuration, state, or abstractions.
-- Use Void native routes/middleware and local Workers/D1 for `pnpm dev` and `pnpm preview`. Build with Void's Vite plugin and deploy the generated Worker with Wrangler. Keep remote migrations explicit and separate from deployment. Do not use Void provisioning, managed auth, or deployment migrations, and do not add a Node production server.
+- Use Void native routes/middleware and local Workers/D1 for `vp dev` and `vp run preview`. Build with Void's Vite plugin and deploy the generated Worker with Wrangler. Keep remote migrations explicit and separate from deployment. Do not use Void provisioning, managed auth, or deployment migrations, and do not add a Node production server.
 - Enable foreign keys explicitly on every SQLite connection. Keep Drizzle schema and migrations compatible with both SQLite and D1. Check Better Auth schema compatibility when upgrading authentication dependencies, using the disposable configuration documented in `README.md`.
 - Verify current external APIs instead of guessing. Pin compatible dependencies and explain any required configuration.
 - Validate external input, enforce authorization on the server, bound request bodies, escape user-controlled output, preserve authentication headers, and keep secrets out of source control.

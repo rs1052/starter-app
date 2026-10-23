@@ -2,7 +2,7 @@ import { defineConfig } from "void/config";
 
 export default defineConfig({
   head: {
-    titleTemplate: "%s | Hono starter",
+    titleTemplate: "%s | Void Vue starter",
     htmlAttrs: { lang: "en" },
     meta: [
       { charset: "utf-8" },

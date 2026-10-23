@@ -2,7 +2,6 @@ export interface RuntimeConfig {
   authURL: string;
   emailFrom?: string;
   production: boolean;
-  resendApiKey?: string;
   secret: string;
   trustedOrigins: string[];
 }
@@ -30,21 +29,14 @@ export function parseRuntimeConfig(
     throw new Error("TRUSTED_ORIGINS must include BETTER_AUTH_URL");
   }
   const emailFrom = optionalValue(values.EMAIL_FROM);
-  const resendApiKey = optionalValue(values.RESEND_API_KEY);
   if (production && !emailFrom) {
     throw new Error("EMAIL_FROM is required in production");
-  }
-  if (!production && Boolean(emailFrom) !== Boolean(resendApiKey)) {
-    throw new Error(
-      "EMAIL_FROM and RESEND_API_KEY must be configured together",
-    );
   }
 
   return {
     authURL,
     emailFrom,
     production,
-    resendApiKey,
     secret,
     trustedOrigins,
   };

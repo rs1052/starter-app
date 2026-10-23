@@ -9,9 +9,7 @@ test("ordinary example form works without JavaScript", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Small browser interactions",
   );
-  await expect(
-    page.getByText("The server rendered a fresh fragment."),
-  ).toBeVisible();
+  await expect(page.getByText("The server refresh completed.")).toBeVisible();
   await page.getByText("Toggle details", { exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(
