@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "vite-plus/test";
 import type { AuthRateLimiter } from "../../../src/app-types.js";
 import { checkAuthRateLimit } from "../../../src/auth/rate-limit.js";
 

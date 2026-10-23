@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import type { AuthRateLimiter } from "../../src/app-types.js";
 import {
   closeAppFixture,
@@ -216,6 +216,77 @@ it("rate-limits authentication before calling Better Auth", async () => {
   expect(await response.text()).toBe("Too many attempts. Try again later.");
   expect(signIn).not.toHaveBeenCalled();
 });
+
+it.each(["account", "sign-in", "sign-out", "change-password"])(
+  "preserves the authoritative session cookie during %s with a renewal due",
+  async (action) => {
+    const credentials = {
+      email: "renewal@example.com",
+      password: "old-password-value",
+    };
+    await formRequest(fixture.app, "/sign-up", {
+      ...credentials,
+      name: "Renewal User",
+    });
+    await fixture.app.request(
+      fixture.messages[0]!.text.match(/https?:\/\/\S+/)![0],
+    );
+    const signedIn = await formRequest(fixture.app, "/sign-in", credentials);
+    const cookie = signedIn.headers
+      .getSetCookie()
+      .find((value) => value.startsWith("better-auth.session_token="))!
+      .split(";", 1)[0]!;
+    const expiresAt = Math.floor(Date.now() / 1000) + 5 * 86_400;
+    fixture.client
+      .prepare("update session set expires_at = ?, updated_at = ?")
+      .run(expiresAt, Math.floor(Date.now() / 1000) - 2 * 86_400);
+
+    const path =
+      action === "change-password" ? "/account/password" : `/${action}`;
+    const response = await fixture.app.request(path, {
+      method: action === "account" ? "GET" : "POST",
+      headers: { cookie, origin },
+      ...(action === "account"
+        ? {}
+        : {
+            body: new URLSearchParams(
+              action === "change-password"
+                ? {
+                    currentPassword: credentials.password,
+                    newPassword: "new-password-value",
+                    passwordConfirmation: "new-password-value",
+                  }
+                : credentials,
+            ),
+          }),
+    });
+    expect(response.status).toBe(action === "account" ? 200 : 303);
+    const sessionCookies = response.headers
+      .getSetCookie()
+      .filter((value) => value.startsWith("better-auth.session_token="));
+    expect(sessionCookies).toHaveLength(1);
+    if (action === "sign-out") {
+      expect(sessionCookies[0]).toMatch(/Max-Age=0/i);
+    } else {
+      expect(sessionCookies[0]).toMatch(/Max-Age=604800/i);
+      const renewedCookie = sessionCookies[0]!.split(";", 1)[0]!;
+      expect(renewedCookie === cookie).toBe(action === "account");
+      expect(
+        (
+          await fixture.app.request("/account", {
+            headers: { cookie: renewedCookie },
+          })
+        ).status,
+      ).toBe(200);
+      if (action === "account") {
+        const session = fixture.client
+          .prepare("select expires_at from session")
+          .get() as { expires_at: number };
+        expect(session.expires_at).toBeGreaterThan(expiresAt);
+      }
+    }
+  },
+);
 
 it("uses separate client and account buckets across changing email addresses", async () => {
   closeAppFixture(fixture);

@@ -44,8 +44,8 @@ async function refresh(event: Event) {
         <div id="server-status" class="example-result" aria-live="polite">
           {{
             refreshed
-              ? "The server rendered a fresh fragment."
-              : "The initial fragment came with the page."
+              ? "The server refresh completed."
+              : "Ready for a server refresh."
           }}
         </div>
         <StatusMessage v-if="error" error>{{ error }}</StatusMessage>

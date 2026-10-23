@@ -6,7 +6,7 @@ import {
 } from "../../src/http/page.js";
 import { accountPage, changePassword } from "../../src/routes/auth.js";
 export const loader = pageLoader((c) =>
-  c.req.method === "GET"
+  c.req.method === "GET" || c.req.method === "HEAD"
     ? renderPage(c, "Not found", { user: null, error: "", success: false }, 404)
     : accountPage(c),
 );

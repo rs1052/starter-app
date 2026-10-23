@@ -1,6 +1,6 @@
 {
-  "name": "Hono starter",
-  "short_name": "Hono starter",
+  "name": "Void Vue starter",
+  "short_name": "Void Vue starter",
   "description": "A small server-rendered application starter.",
   "start_url": "/",
   "scope": "/",

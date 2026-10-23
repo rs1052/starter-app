@@ -13,7 +13,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: "pnpm dev --host 127.0.0.1 --port 4173 --strictPort",
+    command: "vp dev --host 127.0.0.1 --port 4173 --strictPort",
     env: {
       LOCAL_D1_STATE: "data/browser-d1",
       BETTER_AUTH_SECRET: "browser-test-secret-at-least-32-characters",

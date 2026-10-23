@@ -1,4 +1,5 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig } from "vite-plus";
+import { loadEnv } from "vite";
 import { voidPlugin } from "void";
 import { voidVue } from "@void/vue/plugin";
 
@@ -22,6 +23,16 @@ export default defineConfig(({ command, isPreview, mode }) => {
   if (command === "serve" && !isPreview) configureLocalEmail(mode);
 
   return {
+    lint: {
+      plugins: ["typescript", "unicorn", "oxc", "vue"],
+      categories: { correctness: "error" },
+      // Vue templates and TS 6 promise checks remain with ESLint/vue-tsc.
+      options: { typeAware: false, typeCheck: false },
+    },
+    fmt: {
+      printWidth: 80,
+      ignorePatterns: ["resources/css/tokens-foundation.css"],
+    },
     plugins: [
       voidPlugin({ persistTo: process.env.LOCAL_D1_STATE ?? ".void" }),
       voidVue(),

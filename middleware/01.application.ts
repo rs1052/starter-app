@@ -9,7 +9,7 @@ import {
   sessionLookup,
 } from "../src/middleware/application.js";
 import { cloudflareOptions } from "../src/runtime/cloudflare.js";
-import { applicationError } from "../src/http/handler.js";
+import { applicationErrorBoundary } from "../src/http/handler.js";
 import { boundedBody, sameOrigin } from "../src/middleware/request-security.js";
 import { authRequestSecurity } from "../src/routes/auth.js";
 
@@ -48,16 +48,7 @@ export default defineMiddleware(
     requestId(),
     requestLog,
     securityHeaders,
-    async (c, next) => {
-      try {
-        await next();
-      } catch (error) {
-        return applicationError(
-          error instanceof Error ? error : new Error("Unhandled failure"),
-          c,
-        );
-      }
-    },
+    applicationErrorBoundary,
     initialize,
     authRequestSecurity,
     requestSecurity,

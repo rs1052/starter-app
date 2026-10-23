@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { vi } from "vitest";
+import { vi } from "vite-plus/test";
 import { createApp } from "../../src/app.js";
 import type { AuthRateLimiter } from "../../src/app-types.js";
 import { createAuth, type Auth } from "../../src/auth/create-auth.js";

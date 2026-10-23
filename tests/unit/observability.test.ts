@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import {
   closeAppFixture,
   createAppFixture,
@@ -22,17 +22,17 @@ it("logs correlated requests and reports health failures safely", async () => {
   expect(sessionLookup).not.toHaveBeenCalled();
   const requestId = healthy.headers.get("x-request-id");
   expect(requestId).toBeTruthy();
-  expect(
-    fixture.info.mock.calls.some((call: unknown[]) => {
-      const record = JSON.parse(String(call[0])) as Record<string, unknown>;
-      return (
-        record.event === "request.completed" &&
-        record.requestId === requestId &&
-        record.route === "/health" &&
-        record.status === 200
-      );
-    }),
-  ).toBe(true);
+  const completions = fixture.info.mock.calls
+    .map(
+      (call: unknown[]) =>
+        JSON.parse(String(call[0])) as Record<string, unknown>,
+    )
+    .filter(
+      (record: Record<string, unknown>) => record.event === "request.completed",
+    );
+  expect(completions).toEqual([
+    expect.objectContaining({ requestId, route: "/health", status: 200 }),
+  ]);
 
   closeAppFixture(fixture);
   fixture = createAppFixture({
@@ -66,6 +66,7 @@ it("returns and logs a correlation ID for uncaught errors", async () => {
   expect(body).toBe(`Something went wrong. Reference: ${requestId}`);
   expect(body).not.toContain("forced failure");
 
+  expect(errorLog).toHaveBeenCalledTimes(1);
   const record = JSON.parse(String(errorLog.mock.calls[0]?.[0])) as {
     event: string;
     requestId: string;
@@ -73,10 +74,15 @@ it("returns and logs a correlation ID for uncaught errors", async () => {
   expect(record.event).toBe("request.error");
   expect(record.requestId).toBe(requestId);
   expect(errorLog.mock.calls[0]?.[0]).not.toContain("forced failure");
-  expect(
-    fixture.info.mock.calls.some((call: unknown[]) => {
-      const completion = JSON.parse(String(call[0])) as Record<string, unknown>;
-      return completion.requestId === requestId && completion.status === 500;
-    }),
-  ).toBe(true);
+  const completions = fixture.info.mock.calls
+    .map(
+      (call: unknown[]) =>
+        JSON.parse(String(call[0])) as Record<string, unknown>,
+    )
+    .filter(
+      (record: Record<string, unknown>) => record.event === "request.completed",
+    );
+  expect(completions).toEqual([
+    expect.objectContaining({ requestId, status: 500 }),
+  ]);
 });

@@ -38,14 +38,24 @@ export function sessionLookup(auth: Auth) {
       c.set("appSession", null);
       return next();
     }
-    const session = await auth.api.getSession({
+    const { response: session, headers } = await auth.api.getSession({
       headers: c.req.raw.headers,
+      returnHeaders: true,
     });
     c.set("appSession", session);
     c.set("shared", { signedIn: Boolean(session) });
     c.header("Cache-Control", "no-store");
     c.header("Vary", "X-VoidPages");
     await next();
+    // Mutations can rotate or clear these cookies. Their values must win.
+    const responseCookieNames = new Set(
+      c.res.headers.getSetCookie().map((cookie) => cookie.split("=", 1)[0]),
+    );
+    for (const cookie of headers.getSetCookie()) {
+      if (!responseCookieNames.has(cookie.split("=", 1)[0])) {
+        c.header("Set-Cookie", cookie, { append: true });
+      }
+    }
   };
 }
 

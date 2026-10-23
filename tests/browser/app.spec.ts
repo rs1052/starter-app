@@ -9,9 +9,7 @@ test("navigation, examples, and assets", async ({ page }) => {
 
   await page.goto("/examples");
   await page.getByRole("button", { name: "Refresh from server" }).click();
-  await expect(
-    page.getByText("The server rendered a fresh fragment."),
-  ).toBeVisible();
+  await expect(page.getByText("The server refresh completed.")).toBeVisible();
   const disclosure = page.getByText(
     "This state stays entirely in the browser.",
   );

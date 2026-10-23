@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import { closeAppFixture, createAppFixture } from "./app-fixture.js";
 
 it("enforces migrated foreign keys and cascades user deletion", () => {

@@ -1,8 +1,0 @@
-dist/
-node_modules/
-resources/css/tokens-foundation.css
-pnpm-lock.yaml
-.wrangler/
-.void/
-.void-wrangler.jsonc
-void.lock.json

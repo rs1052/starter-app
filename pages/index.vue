@@ -1,7 +1,7 @@
 <template>
   <section class="hero">
     <p class="eyebrow">A small, production-minded foundation</p>
-    <h1>Build server-rendered Hono applications.</h1>
+    <h1>Build server-rendered Void applications.</h1>
     <p class="lede">
       Use local Workers and D1 in development, then deploy the same application
       to Cloudflare.

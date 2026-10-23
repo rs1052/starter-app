@@ -8,7 +8,7 @@ const shared = useShared<{ signedIn: boolean }>();
   <header class="site-header">
     <a class="skip-link" href="#main">Skip to content</a>
     <div class="shell header-inner">
-      <a class="brand" href="/">Hono starter</a>
+      <a class="brand" href="/">Void Vue starter</a>
       <nav aria-label="Primary">
         <ul>
           <li><a href="/">Home</a></li>
